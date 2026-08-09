@@ -37,14 +37,20 @@ ROUTING_BAR = 0.90
 def load_pairs() -> list[tuple[dict, dict | None]]:
     """每个 (场景, 套件) 只取最近一次运行 —— 报告要反映当前状态，
     历史 trace 留在磁盘上作为迭代记录，不混进同一份数据。
-    文件名尾部是 MMDD-HHMM，按字典序排序后覆盖即为取新。"""
-    latest: dict[tuple[str, str], Path] = {}
-    for path in sorted(TRACES.glob("*.json")):
+
+    "最近"按 trace 内部的 created_at 时间戳判定，不能按文件名字符串排序：
+    文件名里的 mode 段（live/mock）排在 timestamp 前面，字母序上 "live" < "mock"，
+    会导致同一批次里旧的 mock 文件在排序后反而覆盖新的 live 文件。"""
+    latest: dict[tuple[str, str], tuple[str, Path]] = {}
+    for path in TRACES.glob("*.json"):
         trace = json.loads(path.read_text(encoding="utf-8"))
-        latest[(trace["scene_id"], trace["suite"])] = path
+        key = (trace["scene_id"], trace["suite"])
+        stamp = trace.get("created_at", "")
+        if key not in latest or stamp > latest[key][0]:
+            latest[key] = (stamp, path)
 
     pairs = []
-    for path in sorted(latest.values()):
+    for _, path in sorted(latest.values(), key=lambda x: x[1]):
         trace = json.loads(path.read_text(encoding="utf-8"))
         jpath = JUDGMENTS / path.name
         judgment = json.loads(jpath.read_text(encoding="utf-8")) if jpath.exists() else None
