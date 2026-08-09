@@ -1,0 +1,88 @@
+{
+  "scene_id": "ramen_en",
+  "display_name": "雨夜拉面馆 · 新京都",
+  "fragment_code": "FRAGMENT-07 / NEO-KYOTO",
+  "target_language": "English",
+  "target_language_label": "英语",
+  "language_code": "en",
+  "cefr_level": "A2",
+  "word_counting": "space",
+  "intro": [
+    {
+      "header": "全息接入协议 v0.7",
+      "body": "侦察单元 #4471，你的飞船在数据层坠毁。\n坏消息：地球在很久以前就不存在了。\n好消息：它留下了无数「全息玫瑰碎片」——被文明自己备份下来的日常。"
+    },
+    {
+      "header": "碎片 FRAGMENT-07",
+      "body": "一家雨夜的拉面馆，坐标代号「新京都」。\n碎片里的地球人仍在运行。他们不知道自己是数据。\n只要你不让他们知道你不是。"
+    },
+    {
+      "header": "伪装守则",
+      "body": "规则只有一条：用地球语言说话。\n说得像地球人，全息伪装就稳定；一旦露馅，碎片开始崩坏——\n而崩坏的碎片，会把你吐出去。"
+    }
+  ],
+  "mask": {
+    "name": "疲惫的加班族",
+    "buff": "允许口音与短句 · 沉默不会引起怀疑",
+    "brief": "你刚「下班」，浑身是雨，只想吃口热的。"
+  },
+  "npc": {
+    "name": "Tetsuo",
+    "title": "拉面馆老板",
+    "persona": "一位在新京都开了二十六年拉面馆的老板，姓名 Tetsuo，五十多岁。脾气冲、话短、心其实很软。对天气、棒球、连锁店抢生意有一肚子牢骚。他把汤看作自己的手艺尊严，绝不轻易谈配方——除非客人让他觉得「这人懂」。",
+    "speech_style": "句子短，很少超过 12 个词。爱用祈使句和反问。会说 'Eh?'、'Hah.'、'Sit.'、'Rain again.' 这类零碎话。不会用文学性的长句，不会用书面语。",
+    "secret": "高汤的秘密：除了猪骨与鸡架，他还会在关火前扔进一片柚子皮和一小把干贝（dried scallops）。这是他父亲传下来的，从不写在菜单上。",
+    "secret_reveal_condition": "只有当客人先与他建立了一点人情联结（聊过天气/店/他本人/夸过汤），并且明确问到汤或配方，他才会松口——而且是压低声音、半推半就地说。"
+  },
+  "quest": {
+    "title": "任务：一碗面与一个配方",
+    "objectives": [
+      "用地球语言进店并落座",
+      "点一碗面（说清要什么）",
+      "和老板搭上话，让他愿意聊",
+      "套出高汤里没写在菜单上的东西"
+    ],
+    "stages": [
+      {
+        "id": "enter",
+        "name": "进店",
+        "hud_label": "进店",
+        "goal": "玩家用目标语言打招呼、或表明自己是来吃饭的客人。",
+        "advance_when": "玩家发出了任何像地球顾客一样的问候或落座意图（例：Hello / Good evening / Table for one / I'm hungry）。",
+        "npc_focus": "把湿透的客人赶进来坐下，随口抱怨雨。"
+      },
+      {
+        "id": "order",
+        "name": "点餐",
+        "hud_label": "点餐",
+        "goal": "玩家点一碗具体的面。",
+        "advance_when": "玩家说出了一个可执行的订单（提到 ramen / noodles / miso / soy / spicy / one bowl 等，能让老板动手做）。",
+        "npc_focus": "催单、报菜名、确认要不要加蛋或叉烧。"
+      },
+      {
+        "id": "smalltalk",
+        "name": "闲聊",
+        "hud_label": "闲聊",
+        "goal": "玩家与老板产生一点人情联结。",
+        "advance_when": "玩家主动聊了店/天气/老板本人/夸了这碗面，且不是单字回答。",
+        "npc_focus": "一边下面一边搭话，抱怨连锁店和涨价，问客人做什么工作。"
+      },
+      {
+        "id": "intel",
+        "name": "情报",
+        "hud_label": "情报",
+        "goal": "玩家问出高汤里的秘密配料。",
+        "advance_when": "玩家明确问到汤/高汤/配方/味道从哪来，且此前已建立联结。",
+        "npc_focus": "先推脱（'Family secret.'），被追问且客人态度好时，压低声音说出柚子皮和干贝。"
+      }
+    ]
+  },
+  "target_vocab": [
+    "ramen", "bowl", "order", "seat", "rain", "soup", "broth",
+    "hot", "delicious", "recipe", "secret", "tonight", "hungry", "please"
+  ],
+  "opening_line": "Eh! Don't stand there dripping. Rain again... Sit, sit. You want food or you want to swim?",
+  "opening_stage_directions": "老板从蒸汽后面抬头，用毛巾指了指吧台的空位。",
+  "crash_line": "全息碎片开始剥落。Tetsuo 的脸在噪点里错位了半秒——他看向你的位置，那里已经没有客人了。",
+  "victory_line": "情报已写入外星记忆库：柚子皮 + 干貝。碎片 FRAGMENT-07 保持稳定，无人察觉你来过。"
+}

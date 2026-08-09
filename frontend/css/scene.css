@@ -1,0 +1,228 @@
+/* ============================================================
+   视口 · 色差分离 · CRT
+   签名机制：场景不是"画一遍加个红滤镜"，而是真的被拆成
+   红通道与青通道两层，用 screen 混合回一张图。
+   伪装度满 → 两层完全重合，画面清晰。
+   伪装度掉 → 两层沿 X 轴分离（--ab），世界开始裂开。
+   所以视觉惩罚不是装饰，它就是渲染管线本身。
+   ============================================================ */
+
+#viewport {
+  position: relative;
+  isolation: isolate;              /* 让 screen 混合只作用在视口内部 */
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  max-height: 46vh;
+  border: 1px solid var(--edge);
+  background: #000;
+}
+
+.chan {
+  position: absolute;
+  inset: 0;
+  mix-blend-mode: screen;
+  will-change: transform;
+  transition: transform .35s cubic-bezier(.2, .9, .3, 1);
+}
+.chan svg { width: 100%; height: 100%; display: block; }
+
+.chan--r  { filter: url(#keep-r);  transform: translateX(calc(var(--ab) * -1)); }
+.chan--gb { filter: url(#keep-gb); transform: translateX(var(--ab)); }
+
+/* 扫描线：常驻，很淡。它是"这是一块屏幕"的提示，不是特效 */
+#viewport::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0) 0 2px,
+    rgba(0, 0, 0, .28) 2px 3px
+  );
+}
+
+/* 撕裂带：只在高档 Glitch 出现 */
+#viewport::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  opacity: var(--tear);
+  background: linear-gradient(
+    180deg,
+    transparent 0 42%,
+    rgba(255, 45, 111, .16) 42% 44%,
+    transparent 44% 61%,
+    rgba(61, 232, 224, .14) 61% 62.5%,
+    transparent 62.5% 100%
+  );
+  animation: tear-drift 2.6s steps(9) infinite;
+}
+@keyframes tear-drift {
+  from { transform: translateY(-14%); }
+  to   { transform: translateY(14%); }
+}
+
+/* 严重错误 / 崩溃的一次性抖动 */
+#viewport.jolt { animation: jolt .34s steps(4); }
+@keyframes jolt {
+  0%   { transform: translate(0, 0); }
+  25%  { transform: translate(-5px, 2px); }
+  50%  { transform: translate(4px, -3px); }
+  75%  { transform: translate(-2px, 1px); }
+  100% { transform: translate(0, 0); }
+}
+
+/* 开机：视口从一条扫描线展开 */
+#viewport.booting { animation: power-on .9s cubic-bezier(.15,.9,.2,1); }
+@keyframes power-on {
+  0%   { clip-path: inset(50% 0 50% 0); filter: brightness(4) saturate(0); }
+  35%  { clip-path: inset(48% 0 48% 0); filter: brightness(3) saturate(.3); }
+  100% { clip-path: inset(0 0 0 0);     filter: none; }
+}
+
+/* ---------------------------------------------------- 箱庭内部的动画 */
+.chan .ink { fill: #201812; }
+.chan .dim { fill: #A87548; }
+
+.chan .boss { transition: transform .3s cubic-bezier(.2,.9,.3,1); }
+.chan .boss.lean { transform: translate(0, 2px) scale(1.03); transform-origin: 99px 40px; }
+
+/* 窗外的雨 */
+.chan .drop { animation: drop-fall .8s linear infinite; }
+@keyframes drop-fall {
+  from { transform: translateY(0);   opacity: .9; }
+  to   { transform: translateY(9px); opacity: 0; }
+}
+
+/* 锅上的蒸汽 */
+.chan .puff { animation: puff-rise 3.2s ease-out infinite; }
+@keyframes puff-rise {
+  0%   { transform: translateY(0)     scaleX(1);   opacity: 0; }
+  18%  { opacity: .26; }
+  100% { transform: translateY(-26px) scaleX(2.2); opacity: 0; }
+}
+
+/* 灯笼：极轻的呼吸，别做成霹雳灯 */
+.chan .flicker { animation: wick 4.5s ease-in-out infinite; }
+@keyframes wick { 0%, 100% { opacity: 1; } 43% { opacity: .82; } 61% { opacity: .95; } }
+.chan .glow { animation: bloom 4.5s ease-in-out infinite; }
+@keyframes bloom { 0%, 100% { opacity: .16; } 43% { opacity: .1; } }
+
+/* ---------------------------------------------------- 碎片铭牌 */
+#fragment-tag {
+  position: absolute;
+  z-index: 5;
+  left: 12px;
+  top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 9px;
+  background: rgba(18, 14, 31, .72);
+  border: 1px solid rgba(242, 193, 78, .35);
+  font-family: var(--f-display);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--yuzu);
+}
+#fragment-tag .rec {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--chan-r);
+  animation: blink 1.9s ease-in-out infinite;
+}
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .2; } }
+
+/* ---------------------------------------------------- 对话记录 */
+#transcript {
+  overflow-y: auto;
+  min-height: 0;
+  padding: 4px 2px 4px 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--edge) transparent;
+}
+#transcript::-webkit-scrollbar { width: 8px; }
+#transcript::-webkit-scrollbar-thumb { background: var(--edge); }
+
+.line { margin: 0 0 16px; }
+
+/* 地球人说话 —— 屏幕上唯一的衬线体。人是暖的 */
+.line--npc .speaker {
+  display: block;
+  margin-bottom: 5px;
+  font-family: var(--f-display);
+  font-size: var(--step-xs);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ember);
+}
+.line--npc .said {
+  font-family: var(--f-human);
+  font-size: 20px;
+  line-height: 1.55;
+  color: #F3E7D6;
+}
+.line--npc .said .caret {
+  display: inline-block;
+  width: 9px;
+  margin-left: 2px;
+  border-bottom: 2px solid var(--ember);
+  animation: blink 1s steps(2) infinite;
+}
+.line--npc .stage-dir {
+  display: block;
+  margin-top: 4px;
+  font-size: var(--step-s);
+  font-style: italic;
+  color: var(--signal-dim);
+}
+
+/* 玩家说话 —— 冷的、被合成出来的。缩进对齐右侧仪器一侧 */
+.line--player {
+  padding-left: 26px;
+  border-left: 1px solid var(--edge);
+}
+.line--player .speaker {
+  display: block;
+  margin-bottom: 4px;
+  font-family: var(--f-display);
+  font-size: var(--step-xs);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--signal-dim);
+}
+.line--player .said {
+  font-family: var(--f-data);
+  font-size: var(--step-m);
+  line-height: 1.5;
+  color: var(--signal);
+}
+/* 被诊断出瑕疵的片段：不打红叉，给它做色差 —— 这是"信号缺陷"，不是"错误" */
+.line--player .flaw {
+  position: relative;
+  color: #fff;
+  text-shadow: -1.5px 0 var(--chan-r), 1.5px 0 var(--chan-c);
+}
+
+/* 被 Router 判为出戏的那一轮：老板的回答带一层冷调，像信号被过滤过 */
+.line--npc.is-deflect .said { color: #C6C2D8; }
+.line--npc.is-deflect .speaker { color: var(--signal-dim); }
+
+/* 系统旁白（崩溃 / 通关 / 降级提示） */
+.line--system .said {
+  font-family: var(--f-ui);
+  font-size: var(--step-s);
+  line-height: 1.6;
+  padding: 10px 12px;
+  border-left: 2px solid var(--chan-r);
+  background: rgba(255, 45, 111, .07);
+  color: var(--signal);
+}
+.line--system.is-good .said {
+  border-left-color: var(--chan-c);
+  background: rgba(61, 232, 224, .07);
+}

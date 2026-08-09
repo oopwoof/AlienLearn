@@ -1,0 +1,174 @@
+/* ============================================================
+   外壳：顶部状态轨 + 主视区 + 右侧仪器轨
+   ============================================================ */
+
+#shell {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100%;
+  max-width: 1420px;
+  margin: 0 auto;
+  padding: 0 var(--gap-l) var(--gap-l);
+}
+
+/* ---------------------------------------------------- 状态轨 */
+#status-rail {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-l);
+  flex-wrap: wrap;
+  padding: 12px 4px 12px;
+  border-bottom: 1px solid var(--edge);
+}
+
+.rail-mark {
+  font-family: var(--f-display);
+  font-size: var(--step-l);
+  letter-spacing: 0.1em;
+  color: var(--yuzu);
+  white-space: nowrap;
+}
+.rail-mark span { color: var(--signal-dim); }
+
+.rail-field { display: flex; align-items: baseline; gap: 7px; }
+.rail-field b {
+  font-family: var(--f-display);
+  font-size: var(--step-s);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--signal);
+}
+
+.rail-spacer { flex: 1 1 auto; }
+
+.link-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 10px;
+  border: 1px solid var(--edge);
+  background: var(--hull);
+  font-family: var(--f-display);
+  font-size: var(--step-xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--signal-dim);
+  transition: border-color .18s, color .18s;
+}
+.link-chip:hover { border-color: var(--yuzu); color: var(--signal); }
+.link-chip[aria-pressed="true"] { border-color: var(--yuzu); color: var(--yuzu); }
+
+.dot {
+  width: 6px; height: 6px;
+  background: var(--chan-c);
+}
+.dot--mock { background: var(--signal-dim); }
+
+/* ---------------------------------------------------- 主视区 */
+#stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--rail-w);
+  gap: var(--gap-l);
+  min-height: 0;
+  padding-top: var(--gap-l);
+}
+
+#main-col {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: var(--gap);
+  min-height: 0;
+}
+
+/* ---------------------------------------------------- 面板处方 */
+.panel {
+  border: 1px solid var(--edge);
+  background: linear-gradient(180deg, var(--hull-lit), var(--hull));
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-s);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--edge);
+}
+
+/* ---------------------------------------------------- 输入区 */
+#composer {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: stretch;
+  border: 1px solid var(--edge);
+  background: var(--hull);
+  transition: border-color .2s;
+}
+#composer:focus-within { border-color: var(--yuzu); }
+#composer.is-locked { opacity: .45; }
+
+#composer-label {
+  grid-column: 1 / -1;
+  padding: 7px 12px 0;
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+#composer-label .lang {
+  font-family: var(--f-display);
+  font-size: var(--step-xs);
+  letter-spacing: 0.16em;
+  color: var(--yuzu);
+}
+
+#input {
+  padding: 6px 12px 12px;
+  border: none;
+  background: none;
+  color: var(--signal);
+  font-family: var(--f-human);
+  font-size: var(--step-l);
+  line-height: 1.45;
+  resize: none;
+  height: 62px;
+}
+#input::placeholder { color: var(--signal-dim); font-family: var(--f-ui); font-size: var(--step-m); }
+#input:focus { outline: none; }
+
+#transmit {
+  align-self: stretch;
+  padding: 0 22px;
+  border-left: 1px solid var(--edge);
+  font-family: var(--f-display);
+  font-size: var(--step-s);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--signal-dim);
+  transition: background .18s, color .18s;
+}
+#transmit:hover:not(:disabled) { background: var(--yuzu); color: var(--void); }
+#transmit:disabled { cursor: not-allowed; opacity: .4; }
+
+#composer-hint {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 12px 8px;
+}
+#composer-hint kbd {
+  font-family: var(--f-data);
+  font-size: 10px;
+  padding: 1px 5px;
+  border: 1px solid var(--edge);
+  color: var(--signal-dim);
+}
+
+/* ---------------------------------------------------- 响应式 */
+@media (max-width: 1040px) {
+  body { overflow: auto; }
+  #shell { height: auto; }
+  #stage { grid-template-columns: minmax(0, 1fr); }
+  #main-col { grid-template-rows: auto auto auto; }
+}

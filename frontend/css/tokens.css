@@ -1,0 +1,113 @@
+/* ============================================================
+   AlienLearn · 设计令牌
+   方向：外星侦察终端。冷的仪器包着一个暖的地球碎片。
+   配色不来自"赛博朋克默认色板"，而来自两处：
+     1) 色差分离的两个物理通道（红 / 青）—— 也是 Glitch 的成因
+     2) 柚子黄 —— 玩家这一局要偷的那味配料，成了整个界面的强调色
+   ============================================================ */
+
+:root {
+  /* 外星侧：冷 */
+  --void:    #120E1F;   /* 舰内幽暗（深靛，不是纯黑） */
+  --hull:    #1D1830;   /* 面板 */
+  --hull-lit:#252041;   /* 面板高亮 */
+  --edge:    #35304F;   /* 蚀刻线 */
+  --signal:  #C9D6F0;   /* 仪器读数 */
+  --signal-dim: #7E86A8;
+
+  /* 地球侧：暖 */
+  --ember:   #E8873A;   /* 灯笼光 */
+  --ember-deep: #8A4520;
+  --yuzu:    #F2C14E;   /* ★ 强调色 = 高汤里的柚子皮 */
+
+  /* 色差通道 —— Glitch 的两个成分 */
+  --chan-r:  #FF2D6F;
+  --chan-c:  #3DE8E0;
+
+  /* 状态语义 */
+  --ok:      var(--chan-c);
+  --warn:    var(--yuzu);
+  --breach:  var(--chan-r);
+
+  /* 字体：三种字面对应三种存在方式 */
+  --f-display: "Bahnschrift Condensed", "Bahnschrift SemiCondensed", Bahnschrift,
+               Oswald, "Arial Narrow", "Microsoft YaHei UI", sans-serif;
+  --f-ui:      "Microsoft YaHei UI", "PingFang SC", "Hiragino Sans GB", system-ui, sans-serif;
+  --f-human:   Georgia, "Yu Mincho", "Hiragino Mincho ProN", "MS Mincho", "Songti SC", serif;
+  --f-data:    Consolas, "Cascadia Mono", ui-monospace, monospace;
+
+  --step-xs: 11px;
+  --step-s:  13px;
+  --step-m:  15px;
+  --step-l:  19px;
+  --step-xl: 27px;
+  --step-xxl: 40px;
+
+  --gap:   14px;
+  --gap-s: 8px;
+  --gap-l: 22px;
+
+  --rail-w: 316px;
+
+  /* 色差偏移量：由 JS 按伪装度写入。整个视觉惩罚体系只靠这一个数 */
+  --ab: 0px;
+  --tear: 0;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--void);
+  color: var(--signal);
+  font-family: var(--f-ui);
+  font-size: var(--step-m);
+  overflow: hidden;
+}
+
+body::before {
+  /* 舰内环境光：一层极淡的靛色渐晕，让纯色底不至于发死 */
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(120% 90% at 50% 0%, #241C3E 0%, transparent 60%);
+  z-index: 0;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--yuzu);
+  outline-offset: 2px;
+}
+
+/* 仪器标签的统一处方：窄体、全大写、宽字距 */
+.etch {
+  font-family: var(--f-display);
+  font-size: var(--step-xs);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--signal-dim);
+}
+
+.num {
+  font-family: var(--f-data);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

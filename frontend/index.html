@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AlienLearn · 全息碎片接入终端</title>
+<link rel="stylesheet" href="/static/css/tokens.css">
+<link rel="stylesheet" href="/static/css/layout.css">
+<link rel="stylesheet" href="/static/css/scene.css">
+<link rel="stylesheet" href="/static/css/hud.css">
+</head>
+<body>
+
+<!-- 色差分离用的通道隔离滤镜。视口把场景渲染两遍，红通道与青通道各一层，
+     用 screen 混回一张图 —— 完全重合时画面正常，分离时世界开始裂开。 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="keep-r" color-interpolation-filters="sRGB">
+    <feColorMatrix type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0"/>
+  </filter>
+  <filter id="keep-gb" color-interpolation-filters="sRGB">
+    <feColorMatrix type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0"/>
+  </filter>
+</svg>
+
+<!-- ============================ 覆盖层：开场 / 简报 / 结算 ============================ -->
+<div id="overlay">
+  <div class="card" id="card"></div>
+</div>
+
+<!-- ============================ 主界面 ============================ -->
+<div id="shell">
+
+  <header id="status-rail">
+    <div class="rail-mark">ALIEN<span>LEARN</span></div>
+    <div class="rail-field"><span class="etch">碎片</span><b id="f-fragment">—</b></div>
+    <div class="rail-field"><span class="etch">面具</span><b id="f-mask">—</b></div>
+    <div class="rail-field"><span class="etch">语言层</span><b id="f-lang">—</b></div>
+    <div class="rail-spacer"></div>
+    <button class="link-chip" id="xray-toggle" aria-pressed="false" title="显示每一轮是哪个 Agent 产出了什么">架构透视</button>
+    <div class="link-chip" id="f-link"><i class="dot dot--mock"></i><span id="f-link-text">链路 —</span></div>
+  </header>
+
+  <main id="stage">
+    <div id="main-col">
+
+      <div id="viewport">
+        <div id="fragment-tag"><i class="rec"></i><span id="tag-text">解码中</span></div>
+      </div>
+
+      <div id="transcript" aria-live="polite"></div>
+
+      <form id="composer" autocomplete="off">
+        <div id="composer-label">
+          <span class="etch">语言合成器</span>
+          <span class="lang" id="f-synth">—</span>
+        </div>
+        <textarea id="input" rows="2" placeholder="接入中…" spellcheck="false"></textarea>
+        <button id="transmit" type="submit" disabled>传输</button>
+        <div id="composer-hint">
+          <span class="etch"><kbd>Enter</kbd> 传输 · <kbd>Shift</kbd>+<kbd>Enter</kbd> 换行</span>
+          <span class="etch" id="f-status"></span>
+        </div>
+      </form>
+
+    </div>
+
+    <aside id="rail">
+
+      <section class="panel" id="gauges">
+        <div class="gauge" id="stability-gauge" data-band="0">
+          <div class="gauge-top">
+            <span class="etch">全息稳定度</span>
+            <span class="gauge-val" id="stability-val">—</span>
+          </div>
+          <div class="bar" id="stability-bar"></div>
+          <div class="gauge-note" id="stability-note"></div>
+        </div>
+        <div class="gauge">
+          <div class="gauge-top">
+            <span class="etch">全息能量</span>
+            <span class="gauge-val" id="energy-val">—</span>
+          </div>
+          <div class="bar" id="energy-bar"></div>
+        </div>
+        <div class="gauge">
+          <div class="gauge-top">
+            <span class="etch">暴露计数</span>
+            <span id="strikes"><i></i><i></i><i></i></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="quest-chain">
+        <span class="etch">任务链</span>
+        <ol></ol>
+      </section>
+
+      <section class="panel" id="decrypt">
+        <div class="panel-head">
+          <span class="etch">解密数据流</span>
+          <span class="etch">pedagogy</span>
+        </div>
+        <div id="decrypt-list">
+          <p class="decrypt-empty"><b>暂无语言瑕疵记录。</b>你说得像个地球人。</p>
+        </div>
+      </section>
+
+    </aside>
+  </main>
+</div>
+
+<!-- 架构透视：默认关闭。给"另一个观众"看每轮的 Agent 分工 -->
+<aside id="xray" hidden>
+  <div class="panel-head">
+    <span class="etch">架构透视 · 每轮 Agent 产出</span>
+    <button class="etch" id="xray-close">关闭</button>
+  </div>
+  <div id="xray-list"></div>
+</aside>
+
+<script type="module" src="/static/js/app.js"></script>
+</body>
+</html>

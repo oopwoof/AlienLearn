@@ -1,0 +1,13 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+
+# 本地埋点库：每台机器自己的对局数据
+data/
+
+# 评测中间产物可重新生成；只把 evidence-*.md 留在仓库里作为迭代证据
+eval/out/traces/
+eval/out/judgments/
+eval/out/report-*.md

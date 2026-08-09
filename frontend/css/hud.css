@@ -1,0 +1,369 @@
+/* ============================================================
+   仪器轨：稳定度 / 能量 / 任务链 / 解密数据流 / 架构透视
+   ============================================================ */
+
+#rail {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: var(--gap);
+  min-height: 0;
+}
+
+/* ---------------------------------------------------- 仪表 */
+#gauges { padding: 12px; }
+
+.gauge + .gauge { margin-top: 16px; }
+
+.gauge-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.gauge-val {
+  font-family: var(--f-data);
+  font-size: var(--step-l);
+  font-variant-numeric: tabular-nums;
+  color: var(--signal);
+}
+.gauge-val small { font-size: var(--step-xs); color: var(--signal-dim); }
+
+/* 分段刻度条：20 格，读数像仪表而不是进度条 */
+.bar {
+  display: flex;
+  gap: 2px;
+  height: 12px;
+}
+.bar i {
+  flex: 1;
+  background: var(--edge);
+  transition: background .3s;
+}
+.bar i.on { background: var(--fill, var(--chan-c)); }
+
+.gauge[data-band="1"] { --fill: var(--yuzu); }
+.gauge[data-band="2"] { --fill: var(--ember); }
+.gauge[data-band="3"] { --fill: var(--chan-r); }
+
+.gauge-note {
+  margin-top: 6px;
+  font-size: var(--step-xs);
+  line-height: 1.5;
+  color: var(--signal-dim);
+  min-height: 1.5em;
+}
+.gauge-note b { color: var(--chan-r); font-weight: 600; }
+.gauge-note b.good { color: var(--chan-c); }
+
+/* 暴露计数：三个方块，直白 */
+#strikes { display: flex; gap: 5px; }
+#strikes i {
+  width: 15px; height: 15px;
+  border: 1px solid var(--edge);
+}
+#strikes i.on {
+  border-color: var(--chan-r);
+  background: var(--chan-r);
+}
+
+/* ---------------------------------------------------- 任务链 */
+/* 用序号是因为它真的是一条状态机链路，顺序本身是信息 */
+#quest-chain { padding: 12px; }
+#quest-chain ol {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+#quest-chain li {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  align-items: baseline;
+  gap: 10px;
+  padding: 5px 0;
+  color: var(--signal-dim);
+  font-size: var(--step-s);
+  position: relative;
+}
+#quest-chain li + li::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: -6px;
+  height: 10px;
+  border-left: 1px solid var(--edge);
+}
+#quest-chain .node {
+  font-family: var(--f-data);
+  font-size: 10px;
+  text-align: center;
+  border: 1px solid var(--edge);
+  line-height: 18px;
+  height: 20px;
+}
+#quest-chain li.done { color: var(--signal); }
+#quest-chain li.done .node { border-color: var(--chan-c); color: var(--chan-c); }
+#quest-chain li.now { color: var(--yuzu); }
+#quest-chain li.now .node {
+  border-color: var(--yuzu);
+  background: var(--yuzu);
+  color: var(--void);
+}
+#quest-chain li .goal {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--step-xs);
+  color: var(--signal-dim);
+}
+
+/* ---------------------------------------------------- 解密数据流 */
+#decrypt { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
+
+#decrypt-list {
+  overflow-y: auto;
+  padding: 10px 12px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--edge) transparent;
+}
+#decrypt-list::-webkit-scrollbar { width: 8px; }
+#decrypt-list::-webkit-scrollbar-thumb { background: var(--edge); }
+
+.decrypt-empty {
+  font-size: var(--step-s);
+  line-height: 1.7;
+  color: var(--signal-dim);
+}
+.decrypt-empty b { display: block; color: var(--chan-c); font-weight: 500; }
+
+.entry {
+  padding: 10px 0;
+  border-top: 1px solid var(--edge);
+  animation: slide-in .4s cubic-bezier(.2,.9,.3,1);
+}
+.entry:first-child { border-top: none; }
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(14px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.entry-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.entry-turn {
+  font-family: var(--f-data);
+  font-size: 10px;
+  padding: 1px 5px;
+  border: 1px solid var(--edge);
+  color: var(--signal-dim);
+}
+.entry-sev {
+  font-family: var(--f-display);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.entry[data-sev="minor"] .entry-sev { color: var(--yuzu); }
+.entry[data-sev="major"] .entry-sev { color: var(--chan-r); }
+
+.fix {
+  font-family: var(--f-data);
+  font-size: var(--step-s);
+  line-height: 1.7;
+}
+.fix .was { color: var(--signal-dim); text-decoration: line-through var(--chan-r); }
+.fix .arrow { color: var(--signal-dim); padding: 0 5px; }
+.fix .now { color: var(--chan-c); }
+.entry .note {
+  margin-top: 4px;
+  font-size: var(--step-xs);
+  line-height: 1.6;
+  color: var(--signal-dim);
+}
+
+/* ---------------------------------------------------- 架构透视 */
+/* 给"另一个观众"看的：这一轮是哪个 Agent 产出了什么。默认关闭 */
+#xray {
+  position: fixed;
+  right: var(--gap-l);
+  bottom: var(--gap-l);
+  z-index: 40;
+  width: 340px;
+  max-height: 52vh;
+  overflow-y: auto;
+  border: 1px solid var(--yuzu);
+  background: rgba(18, 14, 31, .96);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .6);
+}
+#xray[hidden] { display: none; }
+#xray-list { padding: 10px 12px; }
+
+.xray-turn { padding: 8px 0; border-top: 1px solid var(--edge); }
+.xray-turn:first-child { border-top: none; }
+.xray-turn > .etch { display: block; margin-bottom: 5px; }
+
+.xray-row {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  gap: 8px;
+  padding: 2px 0;
+  font-family: var(--f-data);
+  font-size: 11px;
+  line-height: 1.55;
+}
+.xray-row span:first-child { color: var(--yuzu); }
+.xray-row span:last-child { color: var(--signal); word-break: break-word; }
+.xray-row.is-parallel span:first-child::after { content: " ∥"; color: var(--chan-c); }
+
+/* ---------------------------------------------------- 覆盖层（开场 / 结算） */
+#overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: var(--gap-l);
+  background: var(--void);
+}
+#overlay[hidden] { display: none; }
+
+.card {
+  width: min(700px, 100%);
+  max-height: 88vh;
+  overflow-y: auto;
+  border: 1px solid var(--edge);
+  background: linear-gradient(180deg, var(--hull-lit), var(--hull));
+  padding: 34px 38px;
+}
+
+.card .eyebrow {
+  font-family: var(--f-display);
+  font-size: var(--step-xs);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--yuzu);
+}
+.card h1 {
+  margin: 10px 0 20px;
+  font-family: var(--f-display);
+  font-size: var(--step-xxl);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  line-height: 1.1;
+  color: var(--signal);
+}
+.card .body {
+  font-size: 17px;
+  line-height: 1.85;
+  white-space: pre-line;
+  color: #DCE2F2;
+  min-height: 6.5em;
+}
+.card .rule {
+  height: 1px;
+  margin: 24px 0;
+  background: var(--edge);
+}
+
+/* 接入动画：一条扫描线扫过，磷光亮起 */
+.boot { text-align: center; padding: 40px 0 30px; }
+.boot-mark {
+  font-family: var(--f-display);
+  font-size: 46px;
+  letter-spacing: 0.14em;
+  color: var(--yuzu);
+  animation: phosphor 1.5s ease-out both;
+}
+.boot-mark span { color: var(--signal-dim); }
+@keyframes phosphor {
+  0%   { opacity: 0; filter: blur(9px) brightness(4); letter-spacing: 0.5em; }
+  40%  { opacity: 1; filter: blur(2px) brightness(2); }
+  100% { opacity: 1; filter: none; letter-spacing: 0.14em; }
+}
+.boot-sweep {
+  height: 1px;
+  margin: 26px 0;
+  background: linear-gradient(90deg, transparent, var(--chan-c), transparent);
+  animation: sweep 1.5s cubic-bezier(.4,0,.2,1) both;
+}
+@keyframes sweep {
+  0%   { transform: scaleX(0); opacity: 0; }
+  30%  { transform: scaleX(1); opacity: 1; }
+  100% { transform: scaleX(1); opacity: .35; }
+}
+.boot-status { animation: fade-up .6s .8s both; }
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.card code {
+  font-family: var(--f-data);
+  font-size: 13px;
+  padding: 1px 5px;
+  background: var(--void);
+  border: 1px solid var(--edge);
+  color: var(--yuzu);
+}
+
+.brief-grid {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+.brief-item { display: grid; grid-template-columns: 76px 1fr; gap: 14px; align-items: baseline; }
+.brief-item .v { font-size: var(--step-m); line-height: 1.6; color: var(--signal); }
+.brief-item .v em { font-style: normal; color: var(--yuzu); }
+.brief-item ol { margin: 0; padding-left: 18px; }
+.brief-item li { margin-bottom: 5px; }
+
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 30px;
+}
+.btn {
+  display: inline-block;
+  padding: 11px 26px;
+  text-decoration: none;
+  border: 1px solid var(--yuzu);
+  font-family: var(--f-display);
+  font-size: var(--step-s);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--yuzu);
+  transition: background .18s, color .18s;
+}
+.btn:hover { background: var(--yuzu); color: var(--void); }
+.btn--ghost { border-color: var(--edge); color: var(--signal-dim); }
+.btn--ghost:hover { background: var(--edge); color: var(--signal); }
+
+/* ---------------------------------------------------- 结算屏 */
+.scoreboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 1px;
+  margin-top: 22px;
+  background: var(--edge);
+  border: 1px solid var(--edge);
+}
+.score {
+  padding: 14px 16px;
+  background: var(--hull);
+}
+.score .v {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--f-data);
+  font-size: 30px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--signal);
+}
+.score .v small { font-size: var(--step-xs); color: var(--signal-dim); margin-left: 3px; }
+.score--star { background: rgba(242, 193, 78, .1); }
+.score--star .etch { color: var(--yuzu); }
+.score--star .v { color: var(--yuzu); }
+.score .hint { display: block; margin-top: 7px; font-size: 10px; line-height: 1.5; color: var(--signal-dim); }

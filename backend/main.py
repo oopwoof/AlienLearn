@@ -1,0 +1,153 @@
+"""FastAPI 入口。一条命令启动：
+
+    python -m uvicorn main:app --reload --app-dir backend
+或  python backend/run.py
+"""
+
+from __future__ import annotations
+
+import json
+from contextlib import asynccontextmanager
+from typing import AsyncIterator
+
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
+
+import orchestrator
+import telemetry
+from agents import CLIENT
+from config import FRONTEND_DIR, SETTINGS, list_scenes, load_scene
+from game_state import STORE
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    telemetry.db()
+    print(f"[AlienLearn] LLM 模式: {CLIENT.mode}" + ("" if CLIENT.live else "（规则桩，无需 API key）"))
+    print(f"[AlienLearn] 埋点库: {telemetry.db_path()}")
+    yield
+
+
+app = FastAPI(title="AlienLearn MVP", version="0.1.0", lifespan=lifespan)
+
+
+class NewSession(BaseModel):
+    scene_id: str = Field(default_factory=lambda: SETTINGS.default_scene)
+
+
+class TurnInput(BaseModel):
+    session_id: str
+    text: str
+
+
+# ------------------------------------------------------------------ 元信息
+@app.get("/api/meta")
+def meta() -> dict:
+    return {
+        "llm_mode": CLIENT.mode,
+        "model": SETTINGS.model if CLIENT.live else "mock-rules",
+        "scenes": list_scenes(),
+        "default_scene": SETTINGS.default_scene,
+    }
+
+
+# ------------------------------------------------------------------ 开一局
+@app.post("/api/session")
+def create_session(body: NewSession) -> dict:
+    try:
+        scene = load_scene(body.scene_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    session = STORE.create(scene)
+    telemetry.log(
+        session.session_id,
+        scene["scene_id"],
+        "session_start",
+        {"llm_mode": CLIENT.mode, "target_language": scene["target_language"]},
+    )
+    return {
+        "state": session.public_state(),
+        "scene": {
+            "scene_id": scene["scene_id"],
+            "display_name": scene["display_name"],
+            "fragment_code": scene["fragment_code"],
+            "target_language": scene["target_language"],
+            "target_language_label": scene["target_language_label"],
+            "cefr_level": scene["cefr_level"],
+            "intro": scene["intro"],
+            "mask": scene["mask"],
+            "npc_name": scene["npc"]["name"],
+            "npc_title": scene["npc"]["title"],
+            "quest": {
+                "title": scene["quest"]["title"],
+                "objectives": scene["quest"]["objectives"],
+                "stages": [
+                    {"id": s["id"], "name": s["name"], "hud_label": s["hud_label"]}
+                    for s in scene["quest"]["stages"]
+                ],
+            },
+            "target_vocab": scene["target_vocab"],
+            "opening_line": scene["opening_line"],
+            "opening_stage_directions": scene["opening_stage_directions"],
+        },
+        "llm_mode": CLIENT.mode,
+    }
+
+
+@app.get("/api/session/{session_id}/summary")
+def session_summary(session_id: str) -> dict:
+    session = STORE.get(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="会话不存在（服务重启后内存态会清空）")
+    return session.summary()
+
+
+# ------------------------------------------------------------------ 一轮对话
+def _sse(event: str, payload: dict) -> str:
+    return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+@app.post("/api/turn")
+async def turn(body: TurnInput) -> StreamingResponse:
+    session = STORE.get(body.session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    if session.status != "playing":
+        raise HTTPException(status_code=409, detail=f"本局已结束（{session.status}）")
+    text = body.text.strip()
+    if not text:
+        raise HTTPException(status_code=422, detail="不能发送空白输入")
+    if len(text) > 600:
+        raise HTTPException(status_code=422, detail="单轮输入过长（上限 600 字符）")
+
+    async def stream() -> AsyncIterator[str]:
+        try:
+            async for event, payload in orchestrator.run_turn(session, text):
+                yield _sse(event, payload)
+        except Exception as exc:  # noqa: BLE001 — 任何异常都要让前端收到可读的收尾
+            yield _sse("error", {"message": f"链路异常: {exc}"})
+            yield _sse("done", {})
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+# ------------------------------------------------------------------ 指标
+@app.get("/api/metrics")
+def metrics() -> dict:
+    return {"north_star": telemetry.north_star(), "routing": telemetry.routing_stats()}
+
+
+# ------------------------------------------------------------------ 前端托管
+@app.get("/")
+def index() -> FileResponse:
+    return FileResponse(FRONTEND_DIR / "index.html")
+
+
+if FRONTEND_DIR.exists():
+    app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")

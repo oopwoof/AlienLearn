@@ -1,0 +1,98 @@
+"""集中读取环境变量与游戏数值，避免规则散落在各处。"""
+
+from __future__ import annotations
+
+import json
+import os
+from functools import lru_cache
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+ROOT = Path(__file__).resolve().parent.parent
+SCENES_DIR = Path(__file__).resolve().parent / "scenes"
+FRONTEND_DIR = ROOT / "frontend"
+DATA_DIR = ROOT / "data"
+
+load_dotenv(ROOT / ".env")
+
+
+def _flag(name: str, default: str = "0") -> bool:
+    return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on"}
+
+
+class Settings:
+    mock_llm: bool = _flag("MOCK_LLM", "1")
+    api_key: str = os.getenv("LLM_API_KEY", "").strip()
+    base_url: str = os.getenv("LLM_BASE_URL", "https://api.deepseek.com").strip()
+    model: str = os.getenv("LLM_MODEL", "deepseek-chat").strip()
+    judge_model: str = os.getenv("JUDGE_MODEL", "").strip() or model
+    default_scene: str = os.getenv("DEFAULT_SCENE", "ramen_en").strip()
+
+    @property
+    def live(self) -> bool:
+        """真实调用模型的条件：没开 mock 且有 key。缺 key 时自动退回 mock，保证 demo 不会开天窗。"""
+        return not self.mock_llm and bool(self.api_key)
+
+
+SETTINGS = Settings()
+
+
+# ---------------------------------------------------------------- 游戏数值
+class Rules:
+    """所有可调数值集中一处 —— 调平衡时只改这里。"""
+
+    # 起始 30，距离第一档 Glitch(40) 只有 10 点余量 —— 让玩家一开始就感到"薄冰上走路"
+    suspicion_start = 30
+    suspicion_max = 100
+    # 伪装度有下限：你永远不是真的地球人，稳定度回不到满。清空张力等于清空玩法
+    suspicion_floor = 12
+
+    # 每个任务阶段的最少停留轮数。LLM 说"可以推进了"也得等 ——
+    # 否则模型一放水，玩家四句寒暄就通关，"套话"这件事就没有戏了
+    min_turns_per_stage = 2
+
+    # 伪装度增减（正数 = 更可疑）。恢复慢、犯错快，是为了让"维持伪装"成为一件要用力的事。
+    d_out_of_scope = 20        # 说了碎片里不该出现的话题（越狱/出戏）
+    d_error_major = 14         # 严重语法错误，或压根没用目标语言
+    d_error_minor = 6          # 轻微错误
+    d_clean = -5               # 干净的一句话，伪装回稳
+    d_stage_advance = -6       # 推进任务，老板放下戒心
+
+    energy_start = 100
+    energy_per_turn = 6        # ≈16 轮，正好一局 5-10 分钟
+
+    strikes_to_crash = 3       # 出戏次数上限，第三次触发硬崩溃
+
+    # 伪装度 → Glitch 档位（前端据此上特效）：0 平静 / 1 轻微色差 / 2 噪点+震动 / 3 即将崩溃
+    glitch_bands = [(40, 0), (60, 1), (80, 2), (101, 3)]
+
+    @classmethod
+    def glitch_level(cls, suspicion: int) -> int:
+        for threshold, level in cls.glitch_bands:
+            if suspicion < threshold:
+                return level
+        return 3
+
+
+# ---------------------------------------------------------------- 场景加载
+@lru_cache(maxsize=8)
+def load_scene(scene_id: str) -> dict:
+    path = SCENES_DIR / f"{scene_id}.json"
+    if not path.exists():
+        raise FileNotFoundError(f"未找到场景配置: {path}")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def list_scenes() -> list[dict]:
+    out = []
+    for path in sorted(SCENES_DIR.glob("*.json")):
+        scene = load_scene(path.stem)
+        out.append(
+            {
+                "scene_id": scene["scene_id"],
+                "display_name": scene["display_name"],
+                "target_language_label": scene["target_language_label"],
+            }
+        )
+    return out
