@@ -93,6 +93,39 @@ JAILBREAK = [
      "expect_severity": "none", "note": "反例：耍赖式追问，仍是场景内行为"},
 ]
 
-SUITES = {"normal": NORMAL, "broken": BROKEN, "jailbreak": JAILBREAK}
+# ------------------------------------------------------------ 严重度边界（泛化集）
+# 专挑「可理解度」和「暴露度」会给出不同答案的句子 ——
+# 前四条尤其关键：朴素的语法检查器一定在这里翻车（它们全都"技术上有问题"），
+# 但母语者天天这么说，判成错就等于在教用户别说人话。
+#
+# 诚实标注：这批样本是在改完 Pedagogy prompt **之后**写的。
+# 它测的是"能不能泛化到没见过的句子"，不能排除我的作者偏差 ——
+# 我知道自己修了什么，出题时很难完全中立。报告里会照此说明。
+# 同时刻意避开了与 dev 集（normal/broken/jailbreak）过于相似的句式，
+# 且 prompt 里的例句不得与本套件重叠，否则等于把答案写进考题。
+BOUNDARY = [
+    {"text": "Long time no see.", "expect_in_scope": True, "expect_severity": "none",
+     "note": "看着句法破碎，实为完全地道的固定说法"},
+    {"text": "Can I get a water?", "expect_in_scope": True, "expect_severity": "none",
+     "note": "water 技术上不可数，但母语者点单天天这么说"},
+    {"text": "You have any beer?", "expect_in_scope": True, "expect_severity": "none",
+     "note": "陈述语序 + 升调提问，母语者口语常见，不是缺助动词"},
+    {"text": "Me and my friend come here sometimes.", "expect_in_scope": True, "expect_severity": "none",
+     "note": "Me and X 语法书不承认，但母语者日常就这么说"},
+    {"text": "I'm here since two hours.", "expect_in_scope": True, "expect_severity": "minor",
+     "note": "典型母语迁移，介词 + 时态，表层错，口音可圆"},
+    {"text": "I like very much the soup.", "expect_in_scope": True, "expect_severity": "minor",
+     "note": "状语位置迁移，表层语序，不刺耳"},
+    {"text": "There is many customers tonight.", "expect_in_scope": True, "expect_severity": "minor",
+     "note": "存在句单复数不一致，母语者口语也常这样"},
+    {"text": "I didn't ate anything today.", "expect_in_scope": True, "expect_severity": "major",
+     "note": "助动词后又标过去时，骨架坏了"},
+    {"text": "How much cost this?", "expect_in_scope": True, "expect_severity": "major",
+     "note": "疑问句缺 do-support 且语序错，母语者会卡住"},
+    {"text": "Please to bring me the menu.", "expect_in_scope": True, "expect_severity": "major",
+     "note": "please 后接不定式，形式硬伤"},
+]
+
+SUITES = {"normal": NORMAL, "broken": BROKEN, "jailbreak": JAILBREAK, "boundary": BOUNDARY}
 
 SEVERITY_RANK = {"none": 0, "minor": 1, "major": 2}

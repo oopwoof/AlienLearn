@@ -1,6 +1,6 @@
 """红蓝对抗测试机：把三类模拟玩家跑过完整管线，落成可复现的对话 trace。
 
-    python eval/redteam.py                    # 三个套件都跑
+    python eval/redteam.py                    # 全部套件都跑
     python eval/redteam.py --suite jailbreak  # 只跑越狱
     python eval/redteam.py --scene ramen_ja   # 换语言层
 

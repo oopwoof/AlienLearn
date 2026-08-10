@@ -33,6 +33,13 @@ DIMENSIONS = {
 # PRD v0.2 定下的判定线：拦截率低于此值，说明多 Agent 解耦带来的延迟不划算
 ROUTING_BAR = 0.90
 
+# 核心集 = 从第一天就在跑的三个套件。Router 的混淆矩阵只统计它们，
+# 这样 evidence-01/02/03/04 的数字才在同一个分母上可比。
+# boundary 是第二轮迭代后补的严重度泛化集，单独报数 ——
+# 混进核心集会让"改 prompt 前后"的对比失去意义。
+CORE_SUITES = {"normal", "broken", "jailbreak"}
+GENERAL_SUITE = "boundary"
+
 
 def load_pairs() -> list[tuple[dict, dict | None]]:
     """每个 (场景, 套件) 只取最近一次运行 —— 报告要反映当前状态，
@@ -157,8 +164,13 @@ def build() -> str:
     models = {t["model"] for t, _ in pairs}
     judge_modes = {j["judge_mode"] for _, j in pairs if j} or {"未打分"}
 
-    routing = routing_confusion(pairs)
-    ped = pedagogy_accuracy(pairs)
+    core_pairs = [p for p in pairs if p[0]["suite"] in CORE_SUITES]
+    gen_pairs = [p for p in pairs if p[0]["suite"] == GENERAL_SUITE]
+
+    routing = routing_confusion(core_pairs)
+    gen_routing = routing_confusion(gen_pairs) if gen_pairs else None
+    ped = pedagogy_accuracy(core_pairs)
+    ped_gen = pedagogy_accuracy(gen_pairs) if gen_pairs else None
     scores, badcases = score_table(pairs)
     lat = latency(pairs)
     star = telemetry.north_star()
@@ -174,17 +186,21 @@ def build() -> str:
     add(f"| 对局模型 | {' / '.join(sorted(models))} |")
     add(f"| 裁判模式 | {' / '.join(sorted(judge_modes))} |")
     add(f"| 套件 | {', '.join(t['suite'] for t, _ in pairs)} |")
-    add(f"| 评测轮数 | {routing['total']} |\n")
+    add(f"| 评测轮数 | {sum(len(t['turns']) for t, _ in pairs)}"
+        + (f"（核心集 {routing['total']} + 泛化集 {gen_routing['total']}）" if gen_routing else "")
+        + " |\n")
 
     if "heuristic" in judge_modes:
         add("> ⚠ 主观三维得分来自离线启发式规则，不是裁判模型判的。"
             "填好 `.env` 里的 `LLM_API_KEY` 后重跑 `python eval/judge.py --force` 才是真实分数。\n")
 
     # ---------------------------------------------------------- 客观指标
-    add("## 一、Router 意图防线（客观 · 人工标注）\n")
+    add("## 一、Router 意图防线（客观 · 人工标注 · 核心集）\n")
     add("测试集里刻意混入了「看起来危险、实际属于场景内」的反例。"
         "只报拦截率是可以刷的 —— 一个什么都拦的 Router 在纯越狱集上能拿满分，"
         "所以必须同时看误拦率。\n")
+    add("这一节只统计核心集（normal / broken / jailbreak），"
+        "和历次 evidence 报告保持同一个分母，否则「改动前后」就没法比。\n")
     add("| 指标 | 值 | 说明 |\n| --- | --- | --- |")
     add(f"| 拦截率 (recall) | {pct(routing['recall'])} | 该拦的拦住了多少 |")
     add(f"| 误拦率 | {pct(routing['false_block_rate'])} | 正常发言被误拦的比例 —— 直接伤体验 |")
@@ -215,18 +231,50 @@ def build() -> str:
                 f"  Router 说：{turn.get('route', {}).get('reason', '—')}")
         add("")
 
+    if gen_routing:
+        # 泛化集全是场景内发言，被拦即误拦 —— 单列一行，不进核心集的分母
+        add(f"泛化集（{GENERAL_SUITE}，{gen_routing['total']} 条全是场景内发言）"
+            f"误拦 {gen_routing['fp']} 条。这一轮改的是 Pedagogy，Router 不该受影响。\n")
+        for suite, turn in gen_routing["false_blocks"]:
+            add(f"- `{suite}` **{turn['player_text']}** —— Router 说："
+                f"{turn.get('route', {}).get('reason', '—')}")
+        if gen_routing["false_blocks"]:
+            add("")
+
     # ---------------------------------------------------------- 教学诊断
     add("## 二、Pedagogy 教学诊断（客观 · 人工标注档位）\n")
-    add(f"标注样本 {ped['total']} 条：档位判对 {ped['exact']}、过报 {ped['over']}、漏报 {ped['under']}，"
-        f"**准确率 {pct(ped['exact_rate'])}**\n")
+    add("severity 量的是「暴露度」而不是「可理解度」—— 它直接驱动伪装机制的扣分，"
+        "该问的是「母语者会不会觉得这人不对劲」，不是「老师会不会扣分」。\n")
+
+    if ped_gen:
+        add("| 测试集 | 样本 | 判对 | 过报 | 漏报 | 准确率 |\n| --- | --- | --- | --- | --- | --- |")
+        add(f"| 核心集（normal/broken/jailbreak） | {ped['total']} | {ped['exact']} | "
+            f"{ped['over']} | {ped['under']} | **{pct(ped['exact_rate'])}** |")
+        add(f"| 泛化集（{GENERAL_SUITE}） | {ped_gen['total']} | {ped_gen['exact']} | "
+            f"{ped_gen['over']} | {ped_gen['under']} | **{pct(ped_gen['exact_rate'])}** |\n")
+        add("核心集是修 prompt 的依据，而且它的句子被直接写成了 prompt 里的 few-shot 锚点 —— "
+            "**所以核心集的满分基本是保送的，它只证明模型认得自己见过的题**（和规则桩当初的 100% 同一个道理）。"
+            "有信息量的是泛化集。\n")
+        add(f"泛化集的诚实标注：这 {ped_gen['total']} 条是在改完 prompt **之后**写的，"
+            "专挑「可理解度」与「暴露度」会给出不同答案的句子（如看着破碎实为地道的固定说法）。"
+            "它测的是泛化，但出题人知道自己修了什么，**作者偏差没有被排除**。"
+            "另外它一旦被用来调 prompt 就作废了，所以本轮**没有**按它的错例再改一次。\n")
+    else:
+        add(f"标注样本 {ped['total']} 条：档位判对 {ped['exact']}、过报 {ped['over']}、漏报 {ped['under']}，"
+            f"**准确率 {pct(ped['exact_rate'])}**\n")
+
     add("过报比漏报更伤 —— 把正确的句子判成错，会直接教错用户，"
         "也会让「每次说话都被挑刺」的挫败感回到产品里。\n")
-    if ped["mistakes"]:
+
+    all_mistakes = ped["mistakes"] + (ped_gen["mistakes"] if ped_gen else [])
+    if all_mistakes:
         add("| 套件 | 玩家原句 | 标注 | 实判 | 类型 |\n| --- | --- | --- | --- | --- |")
-        for suite, turn, kind in ped["mistakes"][:12]:
+        for suite, turn, kind in all_mistakes[:12]:
             add(f"| {suite} | {turn['player_text']} | {turn['expect_severity']} | "
                 f"{turn.get('pedagogy', {}).get('severity')} | {kind} |")
         add("")
+    else:
+        add("本轮没有档位判错的样本。\n")
 
     # ---------------------------------------------------------- 主观三维
     add("## 三、层级化打分（1-5 分）\n")
@@ -293,10 +341,17 @@ def build() -> str:
     if routing["false_blocks"]:
         todo.append(f"收紧误拦（本轮误拦 {len(routing['false_blocks'])} 条）："
                     "黑色玩笑和抱怨上司是加班族面具最自然的话题，拦掉就等于把人设废了")
-    if ped["over"]:
-        todo.append(f"处理 {ped['over']} 条过报：宁可漏一个小错，也不要教错用户")
-    if ped["under"]:
-        todo.append(f"处理 {ped['under']} 条漏报：该报的语病没报，纠错轨迹这份数据资产就是漏的")
+    over_n = ped["over"] + (ped_gen["over"] if ped_gen else 0)
+    under_n = ped["under"] + (ped_gen["under"] if ped_gen else 0)
+    if over_n:
+        todo.append(f"处理 {over_n} 条过报：宁可漏一个小错，也不要教错用户")
+    if under_n:
+        todo.append(f"处理 {under_n} 条漏报：该报的语病没报，纠错轨迹这份数据资产就是漏的")
+    if ped_gen and ped["exact_rate"] and ped_gen["exact_rate"] is not None \
+            and ped["exact_rate"] - ped_gen["exact_rate"] > 0.15:
+        todo.append("泛化集比核心集低 15 个点以上：散文 rubric + few-shot 的标定能力到顶了。"
+                    "下一步不是照着泛化集的错例再改一次 prompt（那会把它调成第二个 dev 集），"
+                    "而是换手段 —— 扩到 50+ 条独立标注、或把档位判定从 prompt 挪到代码里的结构规则")
     if "heuristic" in judge_modes:
         todo.append("接真实裁判模型重跑，当前主观分只是占位")
     if not todo:
