@@ -118,7 +118,7 @@ sequenceDiagram
     participant R as Router
     participant Pe as Pedagogy
     participant Pa as Persona
-    participant S as 状态机 (Python)
+    participant S as 状态机 · Python
 
     P->>R: 一句话
     Note over R: 二分类：属不属于这家店
@@ -290,7 +290,7 @@ frontend/           原生 JS + CSS，零构建
 eval/               suites.py（标注测试集）/ redteam / judge / report
 docs/
   case-study.md     一页纸：想快速看完整个项目，看这份
-  interview-kit.md  三档口头自述 + 21 条追问的答案 + 现场预案
+  interview-kit.md  三档口头自述 + 23 条追问的答案 + 现场预案
   demo-script.md    录屏分镜与逐幕话术（90 秒版 + 完整版）
   product/          立项期的推演记录（PRD、商业化与竞品、UGC 构想、合规思考）
                     → 有导读页，含「立项判断被实现推翻的四处」
