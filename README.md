@@ -11,17 +11,21 @@
 
 ## 如果你只有三分钟
 
-这是一个求职作品集项目，所以我把最值得看的四样东西直接标出来，不用你自己翻：
+这是一个求职作品集项目，所以我把最值得看的东西直接标出来，不用你自己翻：
 
 | 想看什么 | 去哪 |
 | --- | --- |
+| **一页纸看完整个项目** | → **[docs/case-study.md](docs/case-study.md)** |
+| **立项时的判断被实现推翻的四处**（LangGraph、Pedagogy 职责、状态写权、一条判据的降级） | [docs/product/](docs/product/) 导读页第二节 |
 | **一次完整的问题归因**：73.3% 的诊断准确率，翻完 trace 发现错的不是模型，是我自己的评分标准 | [第四轮迭代记录](#四次真实的迭代记录) · `eval/out/evidence-04-pedagogy-aligned.md` |
 | **为什么我不把留出集也刷到 100%** | 同上，最后三段 |
 | **多 Agent 编排里每个取舍的理由**（没上 LangGraph、并行的边界、数值不给 LLM 碰） | [几个刻意的技术决策](#几个刻意的技术决策) · `backend/orchestrator.py` 文件头 |
 | **指标怎么设计成不可刷的** | [为什么词数统计不交给模型](#几个刻意的技术决策) · `backend/game_state.py` 的 `settle()` |
 
 界面右上角有个 **"架构透视"** 开关，玩家默认看不到——它把每一轮的 Agent 分工、
-并行关系和耗时摊在屏幕上。那是专门留给看架构的人的。
+并行关系和耗时摊在屏幕上。那是专门留给看架构的人的：
+
+![架构透视](docs/screenshot-xray.png)
 
 一条贯穿全项目的原则：**诚实优于漂亮**。规则桩标 `mock`、启发式打分标 `judge_mode=heuristic`、
 没验证的假设只写"待验证"、留出集拿了 70% 就报 70%。分数可以低，口径不能糊。
@@ -46,6 +50,12 @@ AlienLearn 把开口的动机从自律换成生存压力：
 伪装稳的时候两层完全重合，画面清晰；伪装掉档，两层沿 X 轴分离，世界开始撕裂。
 所以视觉惩罚不是贴上去的特效，它就是渲染管线本身——右侧那根稳定度条只是读数，
 真正的仪表是你眼前的世界有多完整。
+
+开场有三屏世界观加一屏任务简报，不是为了铺剧情，是因为**产品得能自己解释自己**——
+没人应该需要作者在旁边讲解才看得懂在玩什么。简报里也直说了机制：
+"色彩通道分离到什么程度，就是你此刻有多可疑"。
+
+![任务简报](docs/screenshot-brief.png)
 
 ---
 
@@ -97,6 +107,38 @@ Pedagogy Agent  Persona Agent（流式）     ← 并行。首字延迟只等 Ro
           ▼
    埋点写 SQLite + SSE 推前端
 ```
+
+并行不是说法，是量出来的。下面这张时序图里的数字全部来自
+`eval/out/evidence-04-pedagogy-aligned.md` 第四节的实测值：
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant P as 玩家
+    participant R as Router
+    participant Pe as Pedagogy
+    participant Pa as Persona
+    participant S as 状态机 (Python)
+
+    P->>R: 一句话
+    Note over R: 二分类：属不属于这家店
+    R-->>Pa: in_scope 决定行为分支
+
+    par Pedagogy 与 Persona 并行
+        R->>Pe: 诊断请求
+        Pe-->>S: severity + errors (JSON)
+    and
+        R->>Pa: 台词请求（流式）
+        Pa-->>P: 首字 1.43s ← 只等 Router
+    end
+
+    Pa-->>S: emotion / quest_signal
+    Note over S: 伪装度·能量·阶段全在 Python<br/>LLM 只投票，不碰数值
+    S-->>P: 每轮总耗时 1.88s (P95 2.34s)
+```
+
+如果改成串行，玩家要多等一个完整的 JSON 诊断才能看到老板开口 ——
+首字延迟会从 1.43s 涨到接近整轮的 1.88s。
 
 ### 几个刻意的技术决策
 
@@ -246,7 +288,12 @@ backend/
   scenes/           场景配置：ramen_en.json / ramen_ja.json
 frontend/           原生 JS + CSS，零构建
 eval/               suites.py（标注测试集）/ redteam / judge / report
-docs/product/       立项期的产品文档（PRD、商业化与竞品、UGC 构想、合规思考）
+docs/
+  case-study.md     一页纸：想快速看完整个项目，看这份
+  interview-kit.md  三档口头自述 + 21 条追问的答案 + 现场预案
+  demo-script.md    录屏分镜与逐幕话术（90 秒版 + 完整版）
+  product/          立项期的推演记录（PRD、商业化与竞品、UGC 构想、合规思考）
+                    → 有导读页，含「立项判断被实现推翻的四处」
 ```
 
 **换语言只改一个 JSON。** `scenes/ramen_ja.json` 和英语版同构，
