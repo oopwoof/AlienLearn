@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "backend"))
 sys.path.insert(0, str(ROOT / "eval"))
 
-from config import SETTINGS, load_scene   # noqa: E402
+from config import SETTINGS, Timeouts, load_scene   # noqa: E402
 from llm import CLIENT                    # noqa: E402
 from suites import SEVERITY_RANK          # noqa: E402
 
@@ -97,6 +97,9 @@ async def judge_with_model(trace: dict) -> dict:
         model=SETTINGS.judge_model,
         temperature=0.0,
         max_tokens=200 * len(trace["turns"]) + 400,
+        # 批处理必须单独放宽：客户端默认是按交互路径调的（8s），
+        # 而这里一次要生成 200×轮数+400 token，用交互的超时会把评测管线打死。
+        timeout=Timeouts.judge_read,
     )
     scored = {int(t.get("index", 0)): t for t in data.get("turns", []) if isinstance(t, dict)}
     out = []

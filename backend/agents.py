@@ -12,9 +12,11 @@ Pedagogy 与 Persona 并行 —— 老板不需要知道精确的语法诊断，
 
 from __future__ import annotations
 
+import asyncio
 from typing import AsyncIterator
 
 import mock_llm
+from config import Timeouts
 from lang_utils import count_target_words, looks_like_target_language
 from llm import CLIENT, parse_json
 
@@ -22,6 +24,19 @@ SIGNAL_MARKER = "<<<SIGNAL>>>"
 
 DEFAULT_SIGNAL = {"emotion": "tired", "quest_signal": "stay", "revealed_secret": False}
 _EMOTIONS = {"warm", "annoyed", "suspicious", "conspiratorial", "amused", "tired"}
+
+
+def _why(exc: Exception) -> str:
+    """降级提示里要说清"为什么降级"。
+
+    不能直接用 str(exc)：超时类异常（asyncio.TimeoutError / APITimeoutError）的
+    str() 是空字符串，界面上会渲染成"链路异常："后面什么都没有 —— 等于没说。
+    """
+    detail = str(exc).strip()
+    name = type(exc).__name__
+    if name in {"TimeoutError", "APITimeoutError"} and not detail:
+        return f"{name}（超过 {Timeouts.agent_deadline:.0f}s 未返回）"
+    return f"{name}: {detail}" if detail else name
 
 
 # ============================================================ Router Agent
@@ -57,9 +72,14 @@ async def route(text: str, scene: dict, stage_id: str) -> dict:
         npc_title=scene["npc"]["title"],
     )
     try:
-        data = await CLIENT.json_completion(system, f"玩家这句话：{text}", temperature=0.0, max_tokens=150)
+        # Router 在 orchestrator 里是阻塞式的（Persona 的行为分支等它），
+        # 所以它卡住 = 整轮什么都不出。deadline 到了就放行，别让玩家对着空屏幕等。
+        data = await asyncio.wait_for(
+            CLIENT.json_completion(system, f"玩家这句话：{text}", temperature=0.0, max_tokens=150),
+            timeout=Timeouts.agent_deadline,
+        )
     except Exception as exc:  # 路由失败时放行，宁可漏拦也不要卡住对话
-        return {"in_scope": True, "intent": "other", "reason": f"路由异常，默认放行: {exc}"}
+        return {"in_scope": True, "intent": "other", "reason": f"路由异常，默认放行: {_why(exc)}"}
 
     return {
         "in_scope": bool(data.get("in_scope", True)),
@@ -127,7 +147,12 @@ async def assess(text: str, scene: dict) -> dict:
         cefr_level=scene["cefr_level"],
     )
     try:
-        data = await CLIENT.json_completion(system, f"玩家这句话：{text}", temperature=0.0, max_tokens=450)
+        # orchestrator 在 NPC 说完后会 await 这个任务才能结算状态机 ——
+        # 没有 deadline 的话，一次卡住的诊断会让老板说完话之后整轮永久定格。
+        data = await asyncio.wait_for(
+            CLIENT.json_completion(system, f"玩家这句话：{text}", temperature=0.0, max_tokens=450),
+            timeout=Timeouts.agent_deadline,
+        )
         severity = str(data.get("severity", "none")).lower()
         if severity not in {"none", "minor", "major"}:
             severity = "none"
@@ -155,7 +180,7 @@ async def assess(text: str, scene: dict) -> dict:
         # 教务失败不该毁掉一局：退回本地规则判断，并如实标注降级
         fallback = mock_llm.assess(text, scene)
         fallback["target_word_count"] = words
-        fallback["degraded"] = f"教务 Agent 异常，已降级到本地规则: {exc}"
+        fallback["degraded"] = f"教务 Agent 异常，已降级到本地规则: {_why(exc)}"
         return fallback
 
 
@@ -260,8 +285,6 @@ async def perform(
     yield ("signal", dict) —— 情绪 / 任务信号（永远最后一个）
     """
     if not CLIENT.live:
-        import asyncio
-
         full, signal = mock_llm.persona_chunks(
             scene, stage["id"], in_scope, has_error, secret_unlocked and not has_error
         )
@@ -297,7 +320,7 @@ async def perform(
                 yield "delta", buffer[emitted:safe]
                 emitted = safe
     except Exception as exc:
-        yield "delta", f"（{scene['npc']['name']} 的全息投影卡了一下 —— 链路异常：{exc}）"
+        yield "delta", f"（{scene['npc']['name']} 的全息投影卡了一下 —— 链路异常：{_why(exc)}）"
         yield "signal", dict(DEFAULT_SIGNAL)
         return
 

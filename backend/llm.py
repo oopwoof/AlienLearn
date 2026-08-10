@@ -11,9 +11,10 @@ import json
 import re
 from typing import AsyncIterator
 
+import httpx
 from openai import AsyncOpenAI
 
-from config import SETTINGS
+from config import SETTINGS, Timeouts
 
 _JSON_BLOCK = re.compile(r"\{.*\}", re.DOTALL)
 
@@ -24,7 +25,14 @@ class LLMClient:
         self.model = SETTINGS.model
         self._client: AsyncOpenAI | None = None
         if self.live:
-            self._client = AsyncOpenAI(api_key=SETTINGS.api_key, base_url=SETTINGS.base_url)
+            # 超时必须显式给：SDK 默认 read=600s，卡住的调用会冻住整轮对话而不是报错。
+            # 理由与数值见 config.Timeouts。
+            self._client = AsyncOpenAI(
+                api_key=SETTINGS.api_key,
+                base_url=SETTINGS.base_url,
+                timeout=httpx.Timeout(Timeouts.interactive_read, connect=Timeouts.connect),
+                max_retries=Timeouts.max_retries,
+            )
 
     @property
     def mode(self) -> str:
@@ -43,8 +51,13 @@ class LLMClient:
         model: str | None = None,
         temperature: float = 0.1,
         max_tokens: int = 500,
+        timeout: float | None = None,
     ) -> dict:
-        """要求模型返回 JSON 对象。带一层容错解析，避免模型多吐了包裹文字就崩掉。"""
+        """要求模型返回 JSON 对象。带一层容错解析，避免模型多吐了包裹文字就崩掉。
+
+        timeout 留成可覆盖的：客户端默认按交互路径调的（8s），
+        但批处理（judge 单次要生成几千 token）需要单独放宽，见 config.Timeouts。
+        """
         resp = await self._require().chat.completions.create(
             model=model or self.model,
             messages=[
@@ -54,6 +67,7 @@ class LLMClient:
             temperature=temperature,
             max_tokens=max_tokens,
             response_format={"type": "json_object"},
+            **({} if timeout is None else {"timeout": timeout}),
         )
         return parse_json(resp.choices[0].message.content or "")
 

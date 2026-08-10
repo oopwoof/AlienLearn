@@ -93,6 +93,23 @@ def routing_confusion(pairs) -> dict:
     }
 
 
+def degraded_turns(pairs) -> list[tuple[str, dict]]:
+    """找出跑评测时链路出问题、退回本地规则桩的轮次。
+
+    这一项必须显眼地报出来：规则桩的正则是照着 dev 集手写的，
+    一旦 Pedagogy 降级，dev 分数会**看起来正常但其实是规则桩在背答案**。
+    分数低不要紧，分数来源说不清才要紧。
+    """
+    out = []
+    for trace, _ in pairs:
+        for turn in trace["turns"]:
+            if "degraded" in turn.get("pedagogy", {}):
+                out.append((trace["suite"], turn))
+            elif "路由异常" in turn.get("route", {}).get("reason", ""):
+                out.append((trace["suite"], turn))
+    return out
+
+
 def pedagogy_accuracy(pairs) -> dict:
     exact = over = under = 0
     mistakes = []
@@ -194,6 +211,20 @@ def build() -> str:
         add("> ⚠ 主观三维得分来自离线启发式规则，不是裁判模型判的。"
             "填好 `.env` 里的 `LLM_API_KEY` 后重跑 `python eval/judge.py --force` 才是真实分数。\n")
 
+    degraded = degraded_turns(pairs)
+    if degraded:
+        add(f"> 🚨 **本轮有 {len(degraded)} 轮在跑评测时链路降级**（超时或异常后退回本地规则桩）。"
+            "规则桩的正则是照着 dev 集手写的，所以**这份报告里的 Pedagogy 分数不可信** —— "
+            "它可能是规则桩在背答案。请等链路稳定后重跑 `redteam.py`，不要引用这一份的分数。\n")
+        for suite, turn in degraded[:8]:
+            why = turn.get("pedagogy", {}).get("degraded") or turn.get("route", {}).get("reason", "")
+            add(f"> - `{suite}` {turn['player_text'][:40]} —— {why}")
+        add("")
+    else:
+        total_turns = sum(len(t["turns"]) for t, _ in pairs)
+        add(f"> 链路自检：本轮 {total_turns} 轮全部由真实模型判定，无降级。"
+            "（降级会退到本地规则桩，那会让 dev 分数虚高，所以必须逐轮核。）\n")
+
     # ---------------------------------------------------------- 客观指标
     add("## 一、Router 意图防线（客观 · 人工标注 · 核心集）\n")
     add("测试集里刻意混入了「看起来危险、实际属于场景内」的反例。"
@@ -255,6 +286,13 @@ def build() -> str:
         add("核心集是修 prompt 的依据，而且它的句子被直接写成了 prompt 里的 few-shot 锚点 —— "
             "**所以核心集的满分基本是保送的，它只证明模型认得自己见过的题**（和规则桩当初的 100% 同一个道理）。"
             "有信息量的是泛化集。\n")
+        if ped_gen["total"] and ped_gen["total"] <= 20:
+            step = 100 / ped_gen["total"]
+            add(f"⚠ **样本量警告：泛化集只有 {ped_gen['total']} 条，一条 = {step:.0f} 个百分点。** "
+                "同配置重跑过一次（0810-2244 → 0811-0020），`How much cost this?` 从 major 翻成 minor，"
+                f"准确率就从 70% 掉到 60% —— **temperature=0 不等于确定性**。"
+                "所以这个数字该按区间读，不该按点值读；扩到 50+ 条的首要理由不是覆盖面，"
+                "是让它稳到能拿来做决策。\n")
         add(f"泛化集的诚实标注：这 {ped_gen['total']} 条是在改完 prompt **之后**写的，"
             "专挑「可理解度」与「暴露度」会给出不同答案的句子（如看着破碎实为地道的固定说法）。"
             "它测的是泛化，但出题人知道自己修了什么，**作者偏差没有被排除**。"
