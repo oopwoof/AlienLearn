@@ -2,3 +2,9 @@ fastapi>=0.110
 uvicorn[standard]>=0.27
 openai>=1.30
 python-dotenv>=1.0
+
+# 下面两个虽然是 fastapi / openai 的依赖，但代码里直接 import 了它们
+# （pydantic 定义请求模型、httpx 构造超时），所以显式声明 ——
+# 依赖别人的传递依赖，等哪天上游换了实现就会突然坏掉。
+pydantic>=2.0
+httpx>=0.27
