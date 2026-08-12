@@ -34,6 +34,10 @@ app = FastAPI(title="AlienLearn MVP", version="0.1.0", lifespan=lifespan)
 
 class NewSession(BaseModel):
     scene_id: str = Field(default_factory=lambda: SETTINGS.default_scene)
+    # 前端 localStorage 里的匿名 UUID。不是账号，不含任何个人信息 ——
+    # 它唯一的用途是把同一个人的多局串起来，好算次日留存（假设二的原始判据）。
+    # 收窄长度是为了别让它变成一个可以往里塞任意数据的字段。
+    player_id: str = Field(default="anonymous", max_length=64)
 
 
 class TurnInput(BaseModel):
@@ -60,12 +64,18 @@ def create_session(body: NewSession) -> dict:
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    session = STORE.create(scene)
+    session = STORE.create(scene, player_id=body.player_id)
     telemetry.log(
         session.session_id,
         scene["scene_id"],
         "session_start",
-        {"llm_mode": CLIENT.mode, "target_language": scene["target_language"]},
+        {
+            "llm_mode": CLIENT.mode,
+            "target_language": scene["target_language"],
+            "player_id": session.player_id,
+            "variant": session.variant,
+        },
+        player_id=session.player_id,
     )
     return {
         "state": session.public_state(),
@@ -140,7 +150,12 @@ async def turn(body: TurnInput) -> StreamingResponse:
 # ------------------------------------------------------------------ 指标
 @app.get("/api/metrics")
 def metrics() -> dict:
-    return {"north_star": telemetry.north_star(), "routing": telemetry.routing_stats()}
+    return {
+        "north_star": telemetry.north_star(),
+        "routing": telemetry.routing_stats(),
+        "retention": telemetry.retention(),      # 假设二
+        "variants": telemetry.variant_stats(),   # 假设三
+    }
 
 
 # ------------------------------------------------------------------ 前端托管

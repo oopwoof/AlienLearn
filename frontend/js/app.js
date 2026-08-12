@@ -18,7 +18,10 @@ const composer = $("#composer");
 const statusLine = $("#f-status");
 
 const hud = new Hud(document);
-const diorama = mountDiorama(viewport);
+/* text_only 分组要把箱庭整个拿掉，所以后面会被替换成空实现 ——
+   用空对象而不是在每个调用点加 if，是为了避免"漏了一处就调到未初始化的箱庭"。 */
+let diorama = mountDiorama(viewport);
+const NO_DIORAMA = { boot() {}, setEmotion() {}, setGlitch() {}, jolt() {} };
 
 let sessionId = null;
 let scene = null;
@@ -67,8 +70,17 @@ async function boot() {
 
   await runIntro(overlay, card, scene);
 
-  diorama.boot();
-  diorama.setEmotion("tired");
+  // A/B（假设三：像素箱庭的 ROI）。text_only 组藏掉整个视口，
+  // 只剩对话 —— 这样量出来的 session 时长差异才能归因到"空间锚点"本身。
+  // 分组由后端按 player_id 哈希决定，前端只是执行，不自己随机。
+  if (payload.state.variant === "text_only") {
+    document.body.dataset.variant = "text_only";
+    viewport.hidden = true;
+    diorama = NO_DIORAMA;
+  } else {
+    diorama.boot();
+    diorama.setEmotion("tired");
+  }
   await openingLine();
 
   unlock();

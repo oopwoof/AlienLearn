@@ -19,7 +19,30 @@ export async function getMeta() {
   return res.json();
 }
 
-export const createSession = (sceneId) => jsonPost("/api/session", { scene_id: sceneId });
+/* 匿名玩家标识。不是账号，不含任何个人信息 ——
+   它唯一的用途是把同一个人的多局串起来，好算次日留存。
+   放 localStorage 而不是 cookie：不跨站发送，清浏览器数据就等于退出。 */
+const PLAYER_KEY = "alienlearn_player_id";
+
+export function playerId() {
+  let id = null;
+  try {
+    id = localStorage.getItem(PLAYER_KEY);
+    if (!id) {
+      id = (crypto.randomUUID?.() || `p${Date.now()}${Math.random().toString(16).slice(2)}`)
+        .replace(/-/g, "");
+      localStorage.setItem(PLAYER_KEY, id);
+    }
+  } catch {
+    /* 隐私模式下 localStorage 会抛错。退回匿名 —— 这个人算不进留存，
+       但一定不能因为拿不到 ID 就玩不了。 */
+    return "anonymous";
+  }
+  return id;
+}
+
+export const createSession = (sceneId) =>
+  jsonPost("/api/session", { scene_id: sceneId, player_id: playerId() });
 
 export async function getMetrics() {
   const res = await fetch("/api/metrics");

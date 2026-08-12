@@ -124,13 +124,16 @@ async def run_turn(session: Session, text: str) -> AsyncIterator[tuple[str, dict
             "energy": outcome.energy,
             "status": outcome.status,
             "llm_mode": agents.CLIENT.mode,
+            "variant": session.variant,
         },
         turn_index=session.turn_count,
+        player_id=session.player_id,
     )
 
     if session.status != "playing":
         summary = session.summary()
-        telemetry.log(session.session_id, scene["scene_id"], "session_end", summary)
+        telemetry.log(session.session_id, scene["scene_id"], "session_end", summary,
+                      player_id=session.player_id)
         ending = {
             "won": scene["victory_line"],
             "crashed": scene["crash_line"],

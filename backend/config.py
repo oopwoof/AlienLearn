@@ -29,6 +29,12 @@ class Settings:
     judge_model: str = os.getenv("JUDGE_MODEL", "").strip() or model
     default_scene: str = os.getenv("DEFAULT_SCENE", "ramen_en").strip()
 
+    # 监听地址。做成可配置有两个实际原因：
+    #   1. 本机 8000 常被别的项目占着，而占用时探活返回 404 而不是连接失败，极易误判
+    #   2. 部署平台通常通过 PORT 注入端口，硬编码就没法上线
+    host: str = os.getenv("HOST", "127.0.0.1").strip()
+    port: int = int(os.getenv("PORT", "8000"))
+
     @property
     def live(self) -> bool:
         """真实调用模型的条件：没开 mock 且有 key。缺 key 时自动退回 mock，保证 demo 不会开天窗。"""

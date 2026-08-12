@@ -8,6 +8,7 @@ LLM 只能"发信号"（quest_signal / emotion / severity），不能直接改�
 
 from __future__ import annotations
 
+import hashlib
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -37,6 +38,13 @@ class Session:
     scene: dict
     session_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     created_at: float = field(default_factory=time.time)
+
+    # 匿名玩家标识（前端 localStorage 里的 UUID）。没有它就算不出次日留存 ——
+    # 而次日留存是 PRD 里假设二的原始判据（"被频繁纠错的玩家是不是留不下来"）。
+    # 刻意不做账号密码：算留存只需要一个稳定的匿名 ID，不需要碰任何凭据。
+    player_id: str = "anonymous"
+    # A/B 分组：diorama（现状）/ text_only（隐藏箱庭）—— 验假设三（像素箱庭的 ROI）
+    variant: str = "diorama"
 
     suspicion: int = Rules.suspicion_start
     energy: int = Rules.energy_start
@@ -161,6 +169,7 @@ class Session:
     def public_state(self) -> dict:
         return {
             "session_id": self.session_id,
+            "variant": self.variant,     # 前端据此决定渲不渲染箱庭
             "suspicion": self.suspicion,
             "suspicion_max": Rules.suspicion_max,
             "glitch_level": Rules.glitch_level(self.suspicion),
@@ -181,6 +190,8 @@ class Session:
         turns = max(1, self.turn_count)
         return {
             "session_id": self.session_id,
+            "player_id": self.player_id,
+            "variant": self.variant,
             "scene_id": self.scene["scene_id"],
             "status": self.status,
             "turns": self.turn_count,
@@ -199,14 +210,34 @@ class Session:
         }
 
 
+VARIANTS = ("diorama", "text_only")
+
+
+def assign_variant(player_id: str) -> str:
+    """按 player_id 稳定分组，不用随机数。
+
+    同一个玩家每次进来必须落在同一组，否则 A/B 的数据全是噪声 ——
+    一个人今天在箱庭组、明天在纯对话组，session 时长的差异就没法归因了。
+    用哈希而不是"存一份分组表"，是因为它无状态：重启、换机器、清库都不会改变分组。
+    """
+    if not player_id or player_id == "anonymous":
+        return VARIANTS[0]
+    digest = hashlib.sha256(player_id.encode("utf-8")).digest()
+    return VARIANTS[digest[0] % len(VARIANTS)]
+
+
 class SessionStore:
-    """MVP 用内存字典即可；换 Redis 只需替换这一个类。"""
+    """MVP 用内存字典即可；换 Redis 只需替换这一个类。
+
+    进行中的对局会在重启时丢掉。这是有意接受的：一局 5-10 分钟，
+    而埋点是即时落 SQLite 的，所以丢的是"进行中的手感"，不是数据。
+    """
 
     def __init__(self) -> None:
         self._sessions: dict[str, Session] = {}
 
-    def create(self, scene: dict) -> Session:
-        session = Session(scene=scene)
+    def create(self, scene: dict, player_id: str = "anonymous") -> Session:
+        session = Session(scene=scene, player_id=player_id, variant=assign_variant(player_id))
         self._sessions[session.session_id] = session
         return session
 

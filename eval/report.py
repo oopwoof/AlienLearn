@@ -370,6 +370,42 @@ def build() -> str:
         add(f"线上真实轮次 {live['turns']}，其中被判出戏 {live['out_of_scope_turns']} "
             f"（{pct(live['out_of_scope_rate'])}），语病分布 {live['severity_mix']}\n")
 
+    # ---------------------------------------------------------- 假设二（次日留存）
+    ret = telemetry.retention()
+    add("### 假设二（正式判据）：被频繁纠错的玩家，次日还回来吗？\n")
+    if not ret.get("players"):
+        add("**还没有带 `player_id` 的对局。** 早期埋点只有 `session_id`，"
+            "所以这条判据一直被降级成「同一局的平均轮次」—— 那只看得到「当场被劝退」，"
+            "看不到「第二天不来了」。内测跑起来之后这一节才有数。\n")
+    else:
+        add(f"| 分组（按首局是否触发纠错） | 玩家数 | 次日回访 | 回访率 |\n| --- | --- | --- | --- |")
+        for key, label in [("with_corrections", "触发过纠错"), ("without_corrections", "未触发纠错")]:
+            g = ret[key]
+            add(f"| {label} | {g['players']} | {g['returned']} | {pct(g['return_rate'])} |")
+        add("")
+        if not ret["conclusive"]:
+            add("**样本不足（两组各需 ≥5 人），不给结论。** 口径已经写死在 "
+                "`telemetry.retention()` 里，就是为了避免数据出来之后再挑一个对自己有利的解释。\n")
+
+    # ---------------------------------------------------------- 假设三（箱庭 ROI）
+    var = telemetry.variant_stats()
+    add("### 假设三：像素箱庭值不值那份实现成本？\n")
+    if not var.get("conclusive") and not any(var.get(v, {}).get("sessions") for v in ("diorama", "text_only")):
+        add("A/B 还没有数据。分组按 `player_id` 哈希稳定分配（同一个人永远落同一组，"
+            "否则时长差异没法归因）。\n")
+    else:
+        add("| 分组 | 对局数 | 平均时长 | 平均轮次 | 平均目标语言词数 |\n| --- | --- | --- | --- | --- |")
+        for v, label in [("diorama", "箱庭"), ("text_only", "纯对话")]:
+            g = var.get(v, {})
+            if not g.get("sessions"):
+                add(f"| {label} | 0 | — | — | — |")
+            else:
+                add(f"| {label} | {g['sessions']} | {g['avg_duration_sec']}s | "
+                    f"{g['avg_turns']} | {g['avg_target_words']} |")
+        add("")
+        if not var.get("conclusive"):
+            add("**样本不足（两组各需 ≥5 局），不给结论。**\n")
+
     # ---------------------------------------------------------- 结论
     add("## 六、下一步\n")
     todo = []
