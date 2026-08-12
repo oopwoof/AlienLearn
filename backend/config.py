@@ -75,6 +75,23 @@ class Timeouts:
     agent_deadline = 14.0
 
 
+# ---------------------------------------------------------------- 用量闸门
+class Limits:
+    """成本保险丝。内测阶段一个泄漏的链接就能把余额烧光，所以这层不能等公开发再加。
+
+    日额度用完不是把人挡在门外，而是切规则桩继续能玩（并且在界面上显示「链路 规则桩」）——
+    静默降级等于骗人，所以必须可见。频率限制才返回拒绝，因为撞到它的通常不是真人。
+    """
+
+    # 今日真实模型调用轮数上限。0 = 不限。按 DeepSeek 的价格，几千轮也就几块钱，
+    # 所以这个数是防"脚本失控"，不是防正常玩。
+    daily_turn_budget = int(os.getenv("DAILY_TURN_BUDGET", "2000"))
+    budget_refresh_sec = 20.0        # 额度计数的缓存窗口，避免每轮都查库
+
+    turns_per_minute_per_player = int(os.getenv("TURNS_PER_MIN_PLAYER", "20"))
+    turns_per_minute_per_ip = int(os.getenv("TURNS_PER_MIN_IP", "40"))
+
+
 # ---------------------------------------------------------------- 游戏数值
 class Rules:
     """所有可调数值集中一处 —— 调平衡时只改这里。"""

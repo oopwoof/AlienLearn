@@ -10,11 +10,12 @@ import json
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+import limits
 import orchestrator
 import telemetry
 from agents import CLIENT
@@ -120,12 +121,30 @@ def _sse(event: str, payload: dict) -> str:
 
 
 @app.post("/api/turn")
-async def turn(body: TurnInput) -> StreamingResponse:
+async def turn(body: TurnInput, request: Request) -> StreamingResponse:
     session = STORE.get(body.session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="会话不存在")
     if session.status != "playing":
         raise HTTPException(status_code=409, detail=f"本局已结束（{session.status}）")
+
+    # 用量闸门。放在这里而不是 LLM 客户端里，是为了只约束玩家流量 ——
+    # eval/ 下的批处理脚本不该被内测的额度限制误伤。
+    client_ip = request.client.host if request.client else "unknown"
+    blocked = limits.check_rate(session.player_id, client_ip)
+    if blocked:
+        raise HTTPException(status_code=429, detail=blocked)
+    if limits.budget_exhausted():
+        # 刻意选择「拒绝」而不是「降级到规则桩」：内测的全部目的是收集真实行为数据，
+        # 悄悄把 NPC 换成规则桩会往数据集里灌垃圾 —— 那比让人今天玩不了更糟。
+        telemetry.log(session.session_id, session.scene["scene_id"], "budget_exhausted",
+                      limits.snapshot(), player_id=session.player_id)
+        raise HTTPException(
+            status_code=503,
+            detail="今天的全息能量池已经见底了 —— 明天再来，碎片会还在这里。",
+        )
+    limits.note_turn()
+
     text = body.text.strip()
     if not text:
         raise HTTPException(status_code=422, detail="不能发送空白输入")
@@ -155,6 +174,7 @@ def metrics() -> dict:
         "routing": telemetry.routing_stats(),
         "retention": telemetry.retention(),      # 假设二
         "variants": telemetry.variant_stats(),   # 假设三
+        "usage": limits.snapshot(),              # 运维：是不是撞了额度闸
     }
 
 
