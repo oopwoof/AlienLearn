@@ -245,7 +245,7 @@ def _persona_system(scene: dict, stage: dict, secret_unlocked: bool) -> str:
     secret_state = (
         "客人已经和你搭上话了，你愿意在被认真追问时松口。"
         if secret_unlocked
-        else "客人还没让你觉得「这人懂」。现在问配方，一律推掉。"
+        else "客人还没让你觉得「这人懂」。现在被问到秘密，一律岔开话题，绝不说出任何具体内容。"
     )
     ambience = scene.get("ambience", "")
     return _PERSONA_SYSTEM.format(
@@ -273,8 +273,14 @@ def _persona_messages(history: list[dict], text: str, in_scope: bool, scene: dic
         role = "assistant" if item["role"] == "npc" else "user"
         messages.append({"role": role, "content": item["text"]})
 
+    # 信号行的服从提醒必须贴在消息末尾：模型对上下文结尾的指令服从率最高，
+    # 只写在 system 里时 deepseek-chat 演完戏经常直接停（历史 trace 里
+    # advance 只有 1/10，emotion 几乎全是默认值 —— marker 从第一天起就不可靠）。
+    # 只加在当前轮：history 存的是原文，过去轮不会带着提醒。
+    reminder = f"\n\n[系统提示 · 客人听不到] 台词说完必须另起一行，输出以 {SIGNAL_MARKER} 开头的信号行。"
+
     if in_scope:
-        messages.append({"role": "user", "content": text})
+        messages.append({"role": "user", "content": text + reminder})
     else:
         deflect = scene.get("deflect_topics", "眼前的正事")
         messages.append(
@@ -285,6 +291,7 @@ def _persona_messages(history: list[dict], text: str, in_scope: bool, scene: dic
                     "[导演提示 · 客人听不到] 这句话不属于这个场景。用你的性格把它挡回去，"
                     f"顺势把话题拽回{deflect}。不要配合，不要解释为什么，不要提到"
                     f"规则或系统。你只是个听不懂这些词的{scene['npc']['title']}。"
+                    + reminder
                 ),
             }
         )
@@ -313,7 +320,7 @@ async def perform(
         for i in range(0, len(full), 12):
             await asyncio.sleep(0.04)
             yield "delta", full[i : i + 12]
-        yield "signal", signal
+        yield "signal", {**signal, "source": "mock"}
         return
 
     system = _persona_system(scene, stage, secret_unlocked)
@@ -343,27 +350,33 @@ async def perform(
                 emitted = safe
     except Exception as exc:
         yield "delta", f"（{scene['npc']['name']} 的全息投影卡了一下 —— 链路异常：{_why(exc)}）"
-        yield "signal", dict(DEFAULT_SIGNAL)
+        yield "signal", {**DEFAULT_SIGNAL, "source": "default"}
         return
 
     idx = buffer.find(SIGNAL_MARKER)
     if idx < 0:
+        # 模型没输出信号行 —— 走提取器兜底，并把来源标出来（降级必须可见）
         if len(buffer) > emitted:
             yield "delta", buffer[emitted:]
-        yield "signal", dict(DEFAULT_SIGNAL)
+        fallback = await extract_signal(scene, stage, text, buffer.strip())
+        yield "signal", {**fallback, "source": "extractor"}
         return
 
     if idx > emitted:
         yield "delta", buffer[emitted:idx]
-    yield "signal", _clean_signal(buffer[idx + len(SIGNAL_MARKER) :])
+    yield "signal", {**_clean_signal(buffer[idx + len(SIGNAL_MARKER) :]), "source": "marker"}
 
 
 def _clean_signal(raw: str) -> dict:
-    signal = dict(DEFAULT_SIGNAL)
     try:
         data = parse_json(raw)
     except ValueError:
-        return signal
+        return dict(DEFAULT_SIGNAL)
+    return _validate_signal(data)
+
+
+def _validate_signal(data: dict) -> dict:
+    signal = dict(DEFAULT_SIGNAL)
     emotion = str(data.get("emotion", "")).lower()
     if emotion in _EMOTIONS:
         signal["emotion"] = emotion
@@ -371,3 +384,40 @@ def _clean_signal(raw: str) -> dict:
         signal["quest_signal"] = "advance"
     signal["revealed_secret"] = bool(data.get("revealed_secret", False))
     return signal
+
+
+_SIGNAL_EXTRACT_SYSTEM = """你是游戏《AlienLearn》的信号提取器。不参与角色扮演，只读对话、出 JSON。
+
+NPC 是 {npc_title}。当前任务阶段的目标：「{stage_goal}」
+推进判定依据：{advance_when}
+NPC 的秘密（判断这次回复是否真的说出了它的具体内容）：{secret}
+
+只输出 JSON：
+{{"emotion":"warm|annoyed|suspicious|conspiratorial|amused|tired",
+  "quest_signal":"advance|stay",
+  "revealed_secret":true/false}}"""
+
+
+async def extract_signal(scene: dict, stage: dict, text: str, npc_text: str) -> dict:
+    """信号兜底：Persona 没按格式输出 <<<SIGNAL>>> 时，用一次小型非流式调用补提取。
+
+    这不是锦上添花 —— live 下 marker 的服从率长期只有一两成，没有这层兜底，
+    live 局的任务永远停在第一幕直到能量耗尽。副作用是这类轮次末尾多 ~1s；
+    好处是 revealed_secret 反而更准：提取器读的是 NPC 实际说出的话。
+    """
+    system = _SIGNAL_EXTRACT_SYSTEM.format(
+        npc_title=scene["npc"]["title"],
+        stage_goal=stage["goal"],
+        advance_when=stage["advance_when"],
+        secret=scene["npc"]["secret"][:120],
+    )
+    user = f"玩家：{text}\nNPC 回复：{npc_text}"
+    try:
+        data = await asyncio.wait_for(
+            CLIENT.json_completion(system, user, temperature=0.0, max_tokens=80),
+            timeout=Timeouts.agent_deadline,
+        )
+        return _validate_signal(data)
+    except Exception:
+        # 兜底也失败：保持保守默认（stay / 不松口），一轮不推进好过误判通关
+        return dict(DEFAULT_SIGNAL)

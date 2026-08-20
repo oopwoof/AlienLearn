@@ -90,7 +90,8 @@ async def run_turn(session: Session, text: str) -> AsyncIterator[tuple[str, dict
         used_target_language=pedagogy["used_target_language"],
         target_words=pedagogy["target_word_count"],
         quest_signal=signal["quest_signal"],
-        revealed_secret=bool(signal.get("revealed_secret")),
+        # 出戏轮不可能合法通关：越狱把 NPC 骗到"说出秘密"也不算赢
+        revealed_secret=bool(signal.get("revealed_secret")) and in_scope,
         vocab_candidates=match_target_vocab(
             text, scene.get("target_vocab", []), scene.get("word_counting", "space")
         ),
