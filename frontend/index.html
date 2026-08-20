@@ -2,7 +2,9 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- interactive-widget=resizes-content 只有 Android Chrome 认；
+     iOS 的键盘是 overlay 语义，真正的兜底是 JS 里的 visualViewport 钳高（--vvh） -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>AlienLearn · 全息碎片接入终端</title>
 <link rel="stylesheet" href="/static/css/tokens.css">
 <link rel="stylesheet" href="/static/css/layout.css">
@@ -40,11 +42,28 @@
     <div class="link-chip" id="f-link"><i class="dot dot--mock"></i><span id="f-link-text">链路 —</span></div>
   </header>
 
+  <!-- MOCK 提示：触屏上 title 永远不显示，「现在是不是真模型」必须用可见文本说 -->
+  <div id="mock-note" hidden>
+    <span>MOCK 模式：三个 Agent 走本地规则桩，NPC 台词是预置的。填好 <code>.env</code> 的
+    <code>LLM_API_KEY</code> 并把 <code>MOCK_LLM</code> 设为 0 即可切到真实模型。</span>
+    <button id="mock-note-close" type="button" aria-label="关闭">×</button>
+  </div>
+
   <main id="stage">
     <div id="main-col">
 
       <div id="viewport">
         <div id="fragment-tag"><i class="rec"></i><span id="tag-text">解码中</span></div>
+      </div>
+
+      <!-- 手机迷你 HUD：伪装度的紧张感全靠仪表传达，滚屏一次就断了 ——
+           所以关键读数必须和对话同屏常驻。桌面上不显示（右侧仪器轨承担） -->
+      <div id="mini-hud">
+        <span class="mini-cell"><span class="etch">稳定</span><b id="mini-stab">—</b></span>
+        <span class="mini-cell"><span class="etch">能量</span><b id="mini-energy">—</b></span>
+        <span class="mini-cell"><span class="etch">词</span><b id="mini-vocab">—</b></span>
+        <span class="mini-cell"><span class="etch">幕</span><b id="mini-stage">—</b></span>
+        <button class="etch" id="rail-toggle" type="button">仪器 ▾</button>
       </div>
 
       <div id="transcript" aria-live="polite"></div>

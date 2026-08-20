@@ -165,10 +165,115 @@
   color: var(--signal-dim);
 }
 
+/* ---------------------------------------------------- MOCK 提示条 */
+#mock-note {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 12px;
+  margin-top: 8px;
+  border: 1px solid var(--edge);
+  background: var(--hull);
+  font-size: var(--step-s);
+  line-height: 1.6;
+  color: var(--signal-dim);
+}
+#mock-note[hidden] { display: none; }
+#mock-note code {
+  font-family: var(--f-data);
+  font-size: 12px;
+  color: var(--yuzu);
+}
+#mock-note button {
+  margin-left: auto;
+  padding: 0 8px;
+  font-size: 16px;
+  color: var(--signal-dim);
+}
+
+/* ---------------------------------------------------- 手机迷你 HUD */
+/* 桌面不显示：右侧仪器轨承担全部读数 */
+#mini-hud { display: none; }
+
 /* ---------------------------------------------------- 响应式 */
 @media (max-width: 1040px) {
   body { overflow: auto; }
   #shell { height: auto; }
   #stage { grid-template-columns: minmax(0, 1fr); }
   #main-col { grid-template-rows: auto auto auto; }
+}
+
+/* 手机：回到「应用壳」模型 —— shell 钳到可视高度（--vvh 由 visualViewport 写入，
+   iOS 键盘弹出时输入框才不会被顶出屏幕），对话内滚，关键读数走迷你 HUD 常驻，
+   完整仪器轨收进底部抽屉 */
+@media (max-width: 768px) {
+  body { overflow: hidden; }
+  #shell {
+    height: 100dvh;                /* 没有 visualViewport 时的降级 */
+    height: var(--vvh, 100dvh);
+    padding: 0 calc(10px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom))
+             calc(10px + env(safe-area-inset-left));
+  }
+  #status-rail { gap: 10px; padding: 8px 2px; }
+  #stage { padding-top: 10px; gap: var(--gap-s); }
+  #main-col { grid-template-rows: auto auto minmax(0, 1fr) auto; gap: var(--gap-s); }
+  #viewport { max-height: 26vh; }
+
+  #mini-hud {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 7px 10px;
+    border: 1px solid var(--edge);
+    background: var(--hull);
+  }
+  .mini-cell { display: inline-flex; align-items: baseline; gap: 5px; }
+  .mini-cell b {
+    font-family: var(--f-data);
+    font-size: var(--step-s);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    color: var(--signal);
+  }
+  #rail-toggle {
+    margin-left: auto;
+    min-height: 32px;
+    padding: 0 10px;
+    border: 1px solid var(--edge);
+  }
+
+  /* 完整仪器轨 → 底部抽屉 */
+  #rail {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 45;
+    max-height: 72vh;
+    overflow-y: auto;
+    padding: 10px calc(10px + env(safe-area-inset-right))
+             calc(10px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
+    background: var(--void);
+    border-top: 1px solid var(--yuzu);
+    transform: translateY(102%);
+    transition: transform .25s cubic-bezier(.2, .9, .3, 1);
+  }
+  body.rail-open #rail { transform: none; }
+
+  /* 触控目标：44px 是拇指的最小尊严 */
+  .btn, .link-chip { min-height: 44px; align-items: center; display: inline-flex; }
+  #xray-close { min-height: 44px; padding: 0 14px; }
+
+  /* 架构透视 → 全屏底部片 */
+  #xray {
+    inset: auto 0 0 0;
+    width: auto;
+    max-height: 70vh;
+    right: 0;
+    bottom: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  /* 碎片/面具/语言层三个字段撑爆状态轨；这些信息简报里都有 */
+  #status-rail .rail-field { display: none; }
+  #composer-hint .etch:first-child { display: none; }  /* 手机没有 Enter 提示的意义 */
 }

@@ -43,10 +43,14 @@ export function mountDiorama(viewport, artId = "ramen") {
       bosses.forEach((g) => g.classList.toggle("lean", emotion === "conspiratorial"));
     },
 
-    /** 伪装度掉档 → 两个色彩通道分开。视觉惩罚就是渲染管线本身。 */
+    /** 伪装度掉档 → 两个色彩通道分开。视觉惩罚就是渲染管线本身。
+        小屏上按视口宽放大：360px 手机上 1.5px 的分离肉眼几乎不可见，
+        而这是「你现在很可疑」唯一的即时画面反馈。（CSS px 已随 DPR 缩放，
+        问题在物理尺寸小，所以按视口宽而不是 devicePixelRatio 缩。） */
     setGlitch(level) {
-      const ab = AB_BY_LEVEL[Math.min(3, Math.max(0, level))];
-      viewport.style.setProperty("--ab", `${ab}px`);
+      const scale = Math.min(2, Math.max(1, 640 / Math.max(1, viewport.clientWidth)));
+      const ab = AB_BY_LEVEL[Math.min(3, Math.max(0, level))] * scale;
+      viewport.style.setProperty("--ab", `${ab.toFixed(1)}px`);
       viewport.style.setProperty("--tear", level >= 2 ? "1" : "0");
     },
 

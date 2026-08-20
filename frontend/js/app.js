@@ -44,6 +44,9 @@ async function boot() {
   $("#f-link").title = live
     ? `真实调用 ${meta.model}`
     : "MOCK 模式：三个 Agent 走本地规则桩，无需 API key。填好 .env 里的 LLM_API_KEY 即可切到真实模型。";
+  // title 在触屏上永远不显示 —— mock 状态必须有可见文本，不然手机内测者
+  // 分不清自己玩的是不是真模型（那一局的数据也就没法解释）
+  if (!live) $("#mock-note").hidden = false;
 
   let payload;
   try {
@@ -391,6 +394,40 @@ function fatal(msg) {
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
+
+/* ------------------------------------------------------------ 手机适配 */
+/* iOS 键盘：Safari 弹键盘时不改 window.innerHeight，只改 visualViewport ——
+   唯一确定性的办法是把布局容器钳到可视高度（--vvh），输入框才永远可见。
+   否掉 scrollIntoView 方案：它和 iOS 自身的 focus 滚动竞争，时序脆弱。
+   用 matchMedia 门控，桌面路径零改动。 */
+const mobileMq = window.matchMedia("(max-width: 768px)");
+(function bindViewportClamp() {
+  const vv = window.visualViewport;
+  if (!vv) return; // 降级链的下一层是 CSS 的 100dvh
+  const apply = () => {
+    if (!mobileMq.matches) {
+      document.documentElement.style.removeProperty("--vvh");
+      return;
+    }
+    document.documentElement.style.setProperty("--vvh", `${Math.round(vv.height)}px`);
+    window.scrollTo(0, 0);                       // 抵消 iOS 的自动滚动
+    transcript.scrollTop = transcript.scrollHeight;
+  };
+  vv.addEventListener("resize", apply);
+  vv.addEventListener("scroll", apply);
+  mobileMq.addEventListener?.("change", apply);
+  apply();
+})();
+
+/* 完整仪器轨在手机上收进底部抽屉 */
+$("#rail-toggle").addEventListener("click", () => {
+  const open = document.body.classList.toggle("rail-open");
+  $("#rail-toggle").textContent = open ? "收起 ▴" : "仪器 ▾";
+});
+
+$("#mock-note-close").addEventListener("click", () => {
+  $("#mock-note").hidden = true;
+});
 
 /* 架构透视开关 */
 const xrayPanel = $("#xray");

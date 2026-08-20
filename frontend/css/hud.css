@@ -468,3 +468,11 @@
 .score--star .etch { color: var(--yuzu); }
 .score--star .v { color: var(--yuzu); }
 .score .hint { display: block; margin-top: 7px; font-size: 10px; line-height: 1.5; color: var(--signal-dim); }
+
+/* ---------------------------------------------------- 小屏覆盖 */
+@media (max-width: 480px) {
+  .card { padding: 20px 18px; }
+  .brief-item { grid-template-columns: 1fr; gap: 4px; }
+  .xray-row { grid-template-columns: 1fr; gap: 2px; }
+  .card h1 { font-size: var(--step-xl); }
+}

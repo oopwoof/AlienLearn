@@ -21,6 +21,12 @@ export class Hud {
     this.decrypt = root.querySelector("#decrypt-list");
     this.xrayList = document.querySelector("#xray-list");
 
+    // 手机迷你 HUD：与主面板双写同一份 state —— 双写比两套渲染逻辑安全
+    this.miniStab = root.querySelector("#mini-stab");
+    this.miniEnergy = root.querySelector("#mini-energy");
+    this.miniVocab = root.querySelector("#mini-vocab");
+    this.miniStage = root.querySelector("#mini-stage");
+
     this._segments(this.stabBar);
     this._segments(this.energyBar);
   }
@@ -77,6 +83,13 @@ export class Hud {
       li.classList.toggle("done", i < state.stage_index);
       li.classList.toggle("now", i === state.stage_index);
     });
+
+    if (this.miniStab) {
+      this.miniStab.textContent = String(stability);
+      this.miniEnergy.textContent = String(state.energy);
+      if (state.vocab_total) this.miniVocab.textContent = `${state.vocab_hit_count}/${state.vocab_total}`;
+      this.miniStage.textContent = `${state.stage_index + 1}/${state.stage_total}`;
+    }
   }
 
   /** 词汇返能提示：正向事件的文字通道，diorama / text_only 两臂共享 */
