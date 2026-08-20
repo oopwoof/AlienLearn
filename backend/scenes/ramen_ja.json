@@ -7,6 +7,11 @@
   "language_code": "ja",
   "cefr_level": "A2 (≈JLPT N4)",
   "word_counting": "char",
+  "setting": "一家雨夜的拉面馆",
+  "ambience": "雨夜。店里只有这一个客人。",
+  "deflect_topics": "面、雨、或者账单",
+  "secret_stage_id": "intel",
+  "art": "ramen",
   "intro": [
     {
       "header": "全息接入协议 v0.7",
@@ -83,6 +88,7 @@
   ],
   "opening_line": "ほい、そこで濡れとってもしゃあないやろ。また雨か……座り、座り。飯か？泳ぎに来たんか？",
   "opening_stage_directions": "老板从蒸汽后面抬头，用毛巾指了指吧台的空位。",
+  "drained_line": "全息能量耗尽。碎片把你温柔地推了出去 —— 今晚的雨你只淋了一半。",
   "crash_line": "全息碎片开始剥落。テツオ 的脸在噪点里错位了半秒——他看向你的位置，那里已经没有客人了。",
   "victory_line": "情报已写入外星记忆库：ゆずの皮 + 干し貝柱。碎片 FRAGMENT-07 保持稳定，无人察觉你来过。"
 }

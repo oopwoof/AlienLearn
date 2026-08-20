@@ -63,6 +63,8 @@ python backend/run.py
 
 不需要 API key 也能玩完整一局：默认走 `MOCK_LLM=1`，三个 Agent 由本地规则桩顶上，
 链路、状态机、埋点、评测全都能跑。状态轨右上角会显示 `链路 规则桩`。
+规则桩的台词库只覆盖拉面馆场景 —— 其他场景在 mock 下走通用兜底台词，
+只保证不崩，体验请用 live。改场景 JSON 后要重启服务（`load_scene` 有 lru_cache）。
 
 <details>
 <summary>起不来的两种情况（都踩过）</summary>

@@ -47,7 +47,7 @@ async function boot() {
 
   let payload;
   try {
-    payload = await createSession(meta.default_scene);
+    payload = await createSession(await chooseScene(meta));
   } catch (err) {
     fatal(`开局失败：${err.message}`);
     return;
@@ -86,6 +86,40 @@ async function boot() {
 
   unlock();
   input.focus();
+}
+
+/** 场景选择。只有一个场景时不打扰；记住上次的选择 —— 回访玩家大概率还玩同一层 */
+function chooseScene(meta) {
+  const scenes = meta.scenes || [];
+  if (scenes.length <= 1) return meta.default_scene;
+
+  let last = null;
+  try { last = localStorage.getItem("alienlearn_scene"); } catch { /* 隐私模式 */ }
+
+  overlay.hidden = false;
+  card.innerHTML = `
+    <span class="eyebrow">选择碎片</span>
+    <h1>接入哪一段地球？</h1>
+    <div class="scene-pick">
+      ${scenes
+        .map(
+          (s) => `
+        <button class="scene-opt${s.scene_id === last ? " is-last" : ""}" data-id="${s.scene_id}" type="button">
+          <b>${escapeHtml(s.display_name)}</b>
+          <span class="etch">${escapeHtml(s.target_language_label)}${s.scene_id === last ? " · 上次玩过" : ""}</span>
+        </button>`
+        )
+        .join("")}
+    </div>`;
+
+  return new Promise((resolve) => {
+    card.querySelectorAll(".scene-opt").forEach((btn) =>
+      btn.addEventListener("click", () => {
+        try { localStorage.setItem("alienlearn_scene", btn.dataset.id); } catch { /* 同上 */ }
+        resolve(btn.dataset.id);
+      }, { once: true })
+    );
+  });
 }
 
 function openingLine() {

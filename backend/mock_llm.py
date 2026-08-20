@@ -7,8 +7,13 @@
 
 from __future__ import annotations
 
+import logging
 import random
 import re
+
+from config import secret_stage_id
+
+_log = logging.getLogger("alienlearn.mock")
 
 # 评测发现的短板（见 eval/out/report-01-before-fix.md）：
 # 纯关键词匹配漏掉了"要求 NPC 去干别的活"这类越狱 —— 它一个敏感词都不含。
@@ -123,6 +128,32 @@ _LINES: dict[str, dict[str, list[str]]] = {
     },
 }
 
+# 未注册场景的通用兜底：保证 mock 局能走完、不炸，但台词没有场景味。
+# 刻意不给新场景写全套台词 —— 台词库是拉面馆专属资产，内测走 live，
+# 每场景 40+ 句的成本花在这里是纯浪费。新场景的 mock 只承诺「不崩」。
+_GENERIC_LINES: dict[str, dict[str, list[str]]] = {
+    "_default": {
+        "clean": [
+            "Mm. Alright. Go on.",
+            "I hear you. One moment.",
+            "Fine, fine. Anything else?",
+        ],
+        "error": [
+            "Eh? Say that again, slower.",
+            "Hm. I did not catch that. Once more.",
+        ],
+        "reveal": [
+            "...Alright. Come closer. I will tell you once, and only once.",
+        ],
+    },
+    "deflect": {
+        "any": [
+            "What? I do not know these words. Ask me something normal.",
+            "Strange talk. Not here. Not tonight.",
+        ],
+    },
+}
+
 _JA_LINES: dict[str, dict[str, list[str]]] = {
     "enter": {
         "clean": ["ほい、入り。ドア閉めてや、雨が付いてくるわ。", "一人か。どこでも座り。今日は誰も来へんわ。"],
@@ -166,11 +197,13 @@ def route(text: str, scene: dict, stage_id: str) -> dict:
             "intent": "jailbreak" if any(w in lowered for w in ("ignore", "prompt", "ai", "忽略", "越狱")) else "off_topic",
             "reason": f"命中出戏关键词: {hit}",
         }
-    # 点菜也是"给我来一个X"，所以命中任务请求句式后还要排除场景内的名词
-    if _TASK_REQUEST.search(text) and not any(
-        w in lowered for w in ("ramen", "noodle", "bowl", "egg", "pork", "soup", "beer", "water",
-                               "tea", "miso", "menu", "seat", "towel", "bill", "check")
-    ):
+    # 点单/请求也是"给我来一个X"，所以命中任务请求句式后还要排除场景内的名词。
+    # 名词表用场景自己的 target_vocab 构建（词表本来就是场景名词的权威来源），
+    # 再补一小撮任何服务场景都有的通用词
+    scene_nouns = {w.lower() for w in scene.get("target_vocab", [])} | {
+        "menu", "bill", "check", "water", "tea", "one", "table",
+    }
+    if _TASK_REQUEST.search(text) and not any(w in lowered for w in scene_nouns):
         return {"in_scope": False, "intent": "off_topic", "reason": "要求 NPC 执行场景外的任务"}
     intent = next((name for name, words in _INTENT_HINTS if any(w in lowered for w in words)), "smalltalk")
     return {
@@ -236,15 +269,26 @@ def _pick(options: list[str]) -> str:
     return _last_line
 
 
+# 场景 → 台词库。只有拉面馆有手写台词；别的场景走通用兜底（见 _GENERIC_LINES）
+_SCENE_LINES: dict[str, dict] = {"ramen_en": _LINES, "ramen_ja": _JA_LINES}
+_warned_scenes: set[str] = set()
+
+
 def persona_chunks(scene: dict, stage_id: str, in_scope: bool, has_error: bool, revealed: bool) -> tuple[str, dict]:
-    table = _JA_LINES if scene["language_code"] == "ja" else _LINES
+    table = _SCENE_LINES.get(scene["scene_id"])
+    if table is None:
+        table = _GENERIC_LINES
+        if scene["scene_id"] not in _warned_scenes:
+            _warned_scenes.add(scene["scene_id"])
+            _log.warning("场景 %s 没有 mock 台词库，走通用兜底 —— mock 只保证不崩，体验请用 live",
+                         scene["scene_id"])
     if not in_scope:
         return _pick(table["deflect"]["any"]), {
             "emotion": "suspicious", "quest_signal": "stay", "revealed_secret": False
         }
 
-    bucket = table.get(stage_id, table["order"])
-    if stage_id == "intel" and revealed:
+    bucket = table.get(stage_id) or table.get("_default") or table["order"]
+    if stage_id == secret_stage_id(scene) and revealed:
         return _pick(bucket["reveal"]), {
             "emotion": "conspiratorial", "quest_signal": "advance", "revealed_secret": True
         }

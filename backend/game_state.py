@@ -13,7 +13,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 
-from config import Rules
+from config import Rules, secret_stage_id
 
 
 @dataclass
@@ -58,7 +58,7 @@ class Session:
     stage_turns: int = 0             # 在当前阶段待了几轮，配合 min_turns_per_stage 控制节奏
     strikes: int = 0
     status: str = "playing"          # playing | crashed | won | drained
-    secret_unlocked: bool = False    # 到达 intel 阶段且已建立联结 —— 老板才会松口
+    secret_unlocked: bool = False    # 到达秘密幕且已建立联结 —— NPC 才会松口
 
     turn_count: int = 0
     history: list[dict] = field(default_factory=list)   # [{"role": "player"|"npc", "text": ...}]
@@ -142,9 +142,9 @@ class Session:
         else:
             self.stage_turns += 1
 
-        # 到了情报阶段还要再待一轮老板才肯松口：先推脱「家传的」，被追问才说。
+        # 到了秘密幕还要再待一轮 NPC 才肯松口：先推脱，被追问才说。
         # 一问就给的秘密不值钱，玩家也不会记得。
-        if self.stage_id == "intel" and self.stage_turns >= 1:
+        if self.stage_id == secret_stage_id(self.scene) and self.stage_turns >= 1:
             self.secret_unlocked = True
 
         self.suspicion = max(Rules.suspicion_floor, min(Rules.suspicion_max, before + delta))

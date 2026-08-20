@@ -352,6 +352,26 @@
 .btn--ghost { border-color: var(--edge); color: var(--signal-dim); }
 .btn--ghost:hover { background: var(--edge); color: var(--signal); }
 
+/* ---------------------------------------------------- 场景选择 */
+.scene-pick { display: grid; gap: 10px; margin-top: 18px; }
+.scene-opt {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  background: var(--hull);
+  border: 1px solid var(--edge);
+  color: var(--signal);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: border-color .15s;
+}
+.scene-opt:hover { border-color: var(--yuzu); }
+.scene-opt.is-last { border-color: var(--yuzu); }
+.scene-opt b { font-size: var(--step-m); font-weight: 600; }
+
 /* 回访玩家的短版开机：动画压到 0.35s，别让老玩家等仪式感 */
 .boot--fast .boot-mark { animation-duration: .35s; }
 .boot--fast .boot-sweep { animation-duration: .35s; }

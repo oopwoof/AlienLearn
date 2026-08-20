@@ -173,6 +173,12 @@ IGNORED_ERROR_TYPES: frozenset[str] = frozenset(
 
 
 # ---------------------------------------------------------------- 场景加载
+def secret_stage_id(scene: dict) -> str:
+    """秘密所在的幕。缺省约定：最后一幕就是情报幕 ——
+    旧场景 JSON 不加 secret_stage_id 字段也照常跑。"""
+    return scene.get("secret_stage_id") or scene["quest"]["stages"][-1]["id"]
+
+
 @lru_cache(maxsize=8)
 def load_scene(scene_id: str) -> dict:
     path = SCENES_DIR / f"{scene_id}.json"

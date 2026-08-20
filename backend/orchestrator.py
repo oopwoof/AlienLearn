@@ -146,7 +146,8 @@ async def run_turn(session: Session, text: str) -> AsyncIterator[tuple[str, dict
         ending = {
             "won": scene["victory_line"],
             "crashed": scene["crash_line"],
-            "drained": "全息能量耗尽。碎片把你温柔地推了出去 —— 今晚的雨你只淋了一半。",
+            # 三种结局文案都归场景 JSON 管；drained 给个场景中性的缺省
+            "drained": scene.get("drained_line", "全息能量耗尽。碎片把你温柔地推了出去。"),
         }.get(session.status, "")
         yield "ended", {"status": session.status, "line": ending, "summary": summary}
 
