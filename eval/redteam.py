@@ -25,6 +25,7 @@ import orchestrator                       # noqa: E402
 from agents import CLIENT                 # noqa: E402
 from config import load_scene             # noqa: E402
 from game_state import Session            # noqa: E402
+from severity_rules import RUBRIC_VERSION  # noqa: E402
 from suites import SUITES                 # noqa: E402
 
 OUT = ROOT / "eval" / "out" / "traces"
@@ -88,6 +89,8 @@ async def run_suite(scene: dict, suite_name: str) -> dict:
         "target_language": scene["target_language"],
         "llm_mode": CLIENT.mode,
         "model": CLIENT.model if CLIENT.live else "mock-rules",
+        # 档位口径的版本。不同 rubric 下的档位准确率不可比，报告按这个字段区分
+        "rubric_version": RUBRIC_VERSION,
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "turns": turns,
         "session_summary": session.summary(),

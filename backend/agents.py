@@ -16,6 +16,7 @@ import asyncio
 from typing import AsyncIterator
 
 import mock_llm
+import severity_rules
 from config import Timeouts
 from lang_utils import count_target_words, looks_like_target_language
 from llm import CLIENT, parse_json
@@ -94,43 +95,57 @@ _PEDAGOGY_SYSTEM = """你是《AlienLearn》的教务 Agent。你不参与角色
 
 目标语言：{target_language}。学习者水平：{cefr_level}。
 
-诊断玩家这一句在 {target_language} 里的自然度问题。
+找出玩家这一句在 {target_language} 里的自然度问题。你只负责「找」：
+每个问题给出 span（原文片段）、fix（改成什么）、type（类别）、note（为什么）。
+严重档位不用你判 —— 档位由代码按 type 决定。
 
-严重度量的是「暴露度」，不是「可理解度」。
-这个分数会直接驱动游戏里的伪装机制 —— 玩家不是在交作文，是在赌这句话会不会让人觉得他不像个真人。
-所以别问"能不能听懂"（"I is very hungry" 谁都听得懂，但它扎耳）。
-要问的是：**一个累了一天、口音很重的外地人这么说，母语者会当成口音，还是会觉得这人不对劲？**
+判断「是不是错误」的标尺是暴露度，不是可理解度：
+一个累了一天、口音很重的外地人这么说，母语者会当成口音，还是会觉得这人不对劲？
 
-- major 句子骨架坏了：be 动词 / 助动词错配或缺失、动词形式与结构不匹配。
-  母语者会卡一下、会反问确认。整句没在用 {target_language} 也算 major。
-  例：I is very hungry ／ I want eat ramen ／ He have egg? ／ I no understand ／ You is cook here long time?
-- minor 骨架立得住，只是表层标记错了：时态标记、冠词、可数性、语序、搭配、礼貌层级。
-  母语者会归因到"外国人口音"，照常接话。
-  例：Much people come here? ／ Yesterday I go to other shop ／ This soup very much delicious ／ a apple juice
-- none 母语者自己也会这么说，或只是随口省略、不正式但通行的说法。
-  例：The broth tastes different from other shops ／ I will tell nobody
+type 只能从下面选。找不到合适的 type，通常说明它根本不是错误 —— 别报。
 
-下面这些一律不是错误，判 none，也不要写进 errors：
+句子骨架级（母语者会卡一下、反问确认）：
+- be_mismatch    be 动词用错了形式：I is hungry ／ you is kind（整个省掉不算这条，见 copula_omission）
+- aux_missing    疑问/否定缺助动词：Where she go?（口语通行的陈述语序提问不算，见下）
+- negation_form  否定形式错误：I no like rain
+- verb_form      动词形式与结构冲突：I want eat ／ I didn't went there
+- agreement      主谓一致的骨架级错误：He have a car
+
+表层标记级（母语者会归因到口音，照常接话）：
+- copula_omission 口语式省略 be 动词：This soup very good
+- tense_marker   时态选错、但动词形式本身与结构不冲突：Yesterday I see him
+                 （形式与结构冲突的才是 verb_form —— 一句话里别两个都报）
+- article        冠词：She bought a orange
+- countability   可数性：Much people come here?
+- plural_form    复数形式：I have three cat
+- word_order     语序：Always I am late
+- preposition    介词：We arrived to the city
+- collocation    搭配：I made a photo
+- quantifier     数量词：a few water
+- register       礼貌层级：对店家/长辈过于随便的说法
+
+日语场景的归类约定：助词错误归 preposition，敬语问题归 register，动词活用错误归 verb_form。
+
+下面这些一律不是错误，不要报：
 - 缩略与否：What is 和 What's 都对，不要"建议更自然"
 - 近义偏好：意思到了就是到了，别换个词说"这样更地道"
-- 正式度、文采、简洁度：这是雨夜的拉面馆，不是雅思写作
+- 正式度、文采、简洁度：这是日常对话，不是雅思写作
 - 标点、大小写、所有格撇号
-- 语法书能挑、但母语者日常真的在说的非正式说法
+- 语法书能挑、但母语者日常真的在说的非正式说法（口语省略、陈述语序的提问、约定俗成的短语）
 
-这个产品的失败模式是「玩家每说一句都被挑刺」，不是「漏掉一个小错」。拿不准就判 none。
+这个产品的失败模式是「玩家每说一句都被挑刺」，不是「漏掉一个小错」。拿不准就不报。
 
 规则：
 - 只诊断玩家的话，不评价 NPC
 - errors 最多 3 条，按重要性排序，每条只说一个问题
 - note 用中文，一句话，说清"为什么"，不是只说"改成什么"
-- 说得对就返回空 errors 和 none。学习者水平是 {cefr_level}，不要求文采
+- 说得对就返回空 errors。学习者水平是 {cefr_level}，不要求文采
 - 不说教、不鼓励、不用 emoji
 
 只输出 JSON：
 {{"used_target_language": true/false,
-  "severity": "none|minor|major",
   "corrected": "整句改写（无错则空字符串）",
-  "errors": [{{"span": "原文片段", "fix": "改成什么", "note": "中文说明"}}]}}"""
+  "errors": [{{"span": "原文片段", "fix": "改成什么", "type": "类别", "note": "中文说明"}}]}}"""
 
 
 async def assess(text: str, scene: dict) -> dict:
@@ -153,29 +168,33 @@ async def assess(text: str, scene: dict) -> dict:
             CLIENT.json_completion(system, f"玩家这句话：{text}", temperature=0.0, max_tokens=450),
             timeout=Timeouts.agent_deadline,
         )
-        severity = str(data.get("severity", "none")).lower()
-        if severity not in {"none", "minor", "major"}:
-            severity = "none"
-        errors = [
+        raw_errors = [
             {
                 "span": str(e.get("span", ""))[:120],
                 "fix": str(e.get("fix", ""))[:160],
+                "type": str(e.get("type", ""))[:32],
                 "note": str(e.get("note", ""))[:200],
             }
             for e in (data.get("errors") or [])[:3]
             if isinstance(e, dict)
         ]
+        # rubric v2：模型只抽取，档位由代码规则算 —— 白名单 type 和
+        # 标点/大小写级的"修正"在这里被丢弃，模型想挑刺也挑不进 HUD
+        errors = severity_rules.filter_errors(raw_errors)
         # 语言归属与词数都以本地检测为准：指标口径不能交给可能幻觉的模型
         used_target = looks_like_target_language(text, scene["language_code"])
-        if not used_target:
-            severity = "major"
-        return {
+        severity, unknown_types = severity_rules.classify(errors, used_target)
+        result = {
             "used_target_language": used_target,
             "severity": severity,
             "corrected": str(data.get("corrected", ""))[:400],
             "errors": errors,
             "target_word_count": words,
         }
+        if unknown_types:
+            # 可见降级：模型发明的 type 按 minor 兜底，但必须留痕，评测能查
+            result["unknown_types"] = unknown_types
+        return result
     except Exception as exc:
         # 教务失败不该毁掉一局：退回本地规则判断，并如实标注降级
         fallback = mock_llm.assess(text, scene)

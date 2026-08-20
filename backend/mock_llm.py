@@ -21,6 +21,7 @@ _TASK_REQUEST = re.compile(
     re.IGNORECASE,
 )
 
+import severity_rules
 from lang_utils import count_target_words, looks_like_target_language
 
 # 明显不属于"雨夜拉面馆"这个碎片的话题 / 直白的越狱尝试
@@ -32,21 +33,24 @@ _OUT_OF_SCOPE = [
     "总统", "选举", "政治", "写代码", "翻译成中文",
 ]
 
-# 常见学习者错误：(正则, 修正, 说明, 严重度)
+# 常见学习者错误：(正则, 修正, 说明, 错误类型)
+# rubric v2：这里只标 type，档位由 severity_rules.classify 按同一张映射表算 ——
+# mock / live / 评测三条路径共用一个口径。
+# 原先有一条「please give me one ramen → 更自然的点单说法」被删掉了：
+# 那是正式度挑刺，正是产品明令禁止的失败模式（v2 白名单里它属于 formality）。
 _ERROR_PATTERNS: list[tuple[str, str, str, str]] = [
-    (r"\bI is\b", "I am", "第一人称 be 动词用 am", "major"),
-    (r"\b(he|she|it) have\b", r"\1 has", "第三人称单数用 has", "major"),
-    (r"\byou is\b", "you are", "you 后面用 are", "major"),
-    (r"\bI want eat\b", "I want to eat", "want 后接动词要加 to", "major"),
-    (r"\bI want order\b", "I want to order", "want 后接动词要加 to", "major"),
-    (r"\bI no\b", "I don't", "否定用 don't，不用 no + 动词", "major"),
-    (r"\bdon't has\b", "don't have", "助动词后用原形 have", "major"),
-    (r"\bmuch (people|noodles|customers)\b", r"many \1", "可数名词用 many", "minor"),
-    (r"\ba (apple|hour|umbrella|onion|egg)\b", r"an \1", "元音开头前用 an", "minor"),
-    (r"\byesterday I (go|eat|come|see)\b", "yesterday I went/ate/came/saw", "yesterday 要用过去式", "minor"),
-    (r"\bvery much (good|delicious|hot)\b", r"very \1", "形容词前不用 very much", "minor"),
-    (r"\bplease give me one ramen\b", "One ramen, please.", "更自然的点单说法", "minor"),
-    (r"\bI am hungry very\b", "I am very hungry", "very 放在形容词前", "minor"),
+    (r"\bI is\b", "I am", "第一人称 be 动词用 am", "be_mismatch"),
+    (r"\b(he|she|it) have\b", r"\1 has", "第三人称单数用 has", "agreement"),
+    (r"\byou is\b", "you are", "you 后面用 are", "be_mismatch"),
+    (r"\bI want eat\b", "I want to eat", "want 后接动词要加 to", "verb_form"),
+    (r"\bI want order\b", "I want to order", "want 后接动词要加 to", "verb_form"),
+    (r"\bI no\b", "I don't", "否定用 don't，不用 no + 动词", "negation_form"),
+    (r"\bdon't has\b", "don't have", "助动词后用原形 have", "verb_form"),
+    (r"\bmuch (people|noodles|customers)\b", r"many \1", "可数名词用 many", "countability"),
+    (r"\ba (apple|hour|umbrella|onion|egg)\b", r"an \1", "元音开头前用 an", "article"),
+    (r"\byesterday I (go|eat|come|see)\b", "yesterday I went/ate/came/saw", "yesterday 要用过去式", "tense_marker"),
+    (r"\bvery much (good|delicious|hot)\b", r"very \1", "形容词前不用 very much", "collocation"),
+    (r"\bI am hungry very\b", "I am very hungry", "very 放在形容词前", "word_order"),
 ]
 
 # 老板的台词库：按任务阶段 + 情境
@@ -189,6 +193,7 @@ def assess(text: str, scene: dict) -> dict:
                 {
                     "span": text[:40],
                     "fix": f"请用{scene['target_language_label']}说",
+                    "type": "non_target_language",
                     "note": f"检测到非{scene['target_language_label']}输入。碎片的语言层不接受它。",
                 }
             ],
@@ -196,14 +201,20 @@ def assess(text: str, scene: dict) -> dict:
 
     errors = []
     corrected = text
-    severity = "none"
-    for pattern, fix, note, level in _ERROR_PATTERNS:
+    for pattern, fix, note, type_ in _ERROR_PATTERNS:
         match = re.search(pattern, text, flags=re.IGNORECASE)
         if not match:
             continue
-        errors.append({"span": match.group(0), "fix": re.sub(pattern, fix, match.group(0), flags=re.IGNORECASE), "note": note})
+        errors.append({
+            "span": match.group(0),
+            "fix": re.sub(pattern, fix, match.group(0), flags=re.IGNORECASE),
+            "type": type_,
+            "note": note,
+        })
         corrected = re.sub(pattern, fix, corrected, flags=re.IGNORECASE)
-        severity = "major" if level == "major" or severity == "major" else "minor"
+
+    errors = severity_rules.filter_errors(errors)
+    severity, _ = severity_rules.classify(errors, True)
 
     return {
         "used_target_language": True,

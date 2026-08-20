@@ -138,6 +138,40 @@ class Rules:
         return 3
 
 
+# ---------------------------------------------------------------- 语病档位映射（rubric v2-typed）
+# 档位 = 暴露度：major 是句子骨架坏了（母语者会卡一下、反问确认），
+# minor 是表层标记错了（母语者归因到口音，照常接话）。
+# 模型只负责抽取 span/fix/type，档位由这张表决定 —— 和「数值不给 LLM 碰」同一个原则。
+# 这张表和 Rules 的数值一样：内测开始后冻结，中途改会毁掉数据可比性。
+SEVERITY_BY_TYPE: dict[str, str] = {
+    # 句子骨架
+    "be_mismatch": "major",          # I is hungry / you is kind
+    "aux_missing": "major",          # 疑问/否定缺 do-support
+    "negation_form": "major",        # I no understand
+    "verb_form": "major",            # I want eat / I didn't went
+    "agreement": "major",            # he have
+    "non_target_language": "major",  # 整句没用目标语言（代码检测强制，不依赖模型报）
+    # 表层标记
+    "copula_omission": "minor",      # This soup very good —— 省略 be 是口音式零系动词，
+                                     # 和「用错 be」（I is，major）暴露度完全不同
+    "tense_marker": "minor",         # yesterday I see him
+    "article": "minor",              # a orange
+    "countability": "minor",         # much people
+    "plural_form": "minor",          # three cat
+    "word_order": "minor",           # always I am late
+    "preposition": "minor",          # we arrived to the city
+    "collocation": "minor",          # make a photo
+    "quantifier": "minor",           # a few water
+    "register": "minor",             # 礼貌层级/敬语（主要针对日语）
+}
+
+# 这些"问题"一律不是错误 —— 出现即整条丢弃，连 minor 都不给。
+# 产品的失败模式是「玩家每说一句都被挑刺」，不是「漏掉一个小错」。
+IGNORED_ERROR_TYPES: frozenset[str] = frozenset(
+    {"contraction", "synonym", "formality", "punctuation", "capitalization", "possessive"}
+)
+
+
 # ---------------------------------------------------------------- 场景加载
 @lru_cache(maxsize=8)
 def load_scene(scene_id: str) -> dict:
