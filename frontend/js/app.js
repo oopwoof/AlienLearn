@@ -1,6 +1,6 @@
 /* 主循环：接入 → 开场 → 逐轮对话 → 结算 */
 
-import { createSession, getMeta, streamTurn } from "./api.js";
+import { createSession, getMeta, sendClientEvent, streamTurn } from "./api.js";
 import { mountDiorama } from "./diorama.js";
 import { Hud } from "./hud.js";
 import { runIntro, showEnding } from "./intro.js";
@@ -21,7 +21,7 @@ const hud = new Hud(document);
 /* text_only 分组要把箱庭整个拿掉，所以后面会被替换成空实现 ——
    用空对象而不是在每个调用点加 if，是为了避免"漏了一处就调到未初始化的箱庭"。 */
 let diorama = mountDiorama(viewport);
-const NO_DIORAMA = { boot() {}, setEmotion() {}, setGlitch() {}, jolt() {} };
+const NO_DIORAMA = { boot() {}, setEmotion() {}, setGlitch() {}, jolt() {}, pulse() {} };
 
 let sessionId = null;
 let scene = null;
@@ -65,6 +65,7 @@ async function boot() {
   document.title = `AlienLearn · ${scene.display_name}`;
 
   hud.buildChain(scene.quest.stages);
+  hud.setVocabTotal(scene.target_vocab.length);
   hud.render(payload.state);
   $("#stability-note").textContent = "接入完成。伪装尚未被质疑。";
 
@@ -126,6 +127,7 @@ async function send() {
   const playerLine = addPlayerLine(text);
   const { said, tw } = addNpcLine();
   currentTw = tw;
+  let turnErrors = [];
 
   const t0 = performance.now();
   const at = (label) => `${label} ${((performance.now() - t0) / 1000).toFixed(2)}s`;
@@ -142,7 +144,8 @@ async function send() {
           break;
 
         case "pedagogy":
-          markFlaws(playerLine, text, data.errors);
+          turnErrors = data.errors || [];
+          renderPlayerLine(playerLine, text, turnErrors, []);
           hud.addCorrection(turnNo, data);
           xray.push([
             "PEDAGOGY",
@@ -169,6 +172,10 @@ async function send() {
 
         case "state":
           applyState(data);
+          // 命中的目标词金光要等 state（后端才是命中判定的唯一口径）
+          if (data.vocab_new_hits?.length) {
+            renderPlayerLine(playerLine, text, turnErrors, data.vocab_new_hits);
+          }
           xray.push([
             "STATE",
             `稳定度 ${data.suspicion_max - data.suspicion + data.suspicion_delta}→${data.suspicion_max - data.suspicion}` +
@@ -214,6 +221,12 @@ function applyState(state) {
   hud.render(state);
   diorama.setGlitch(state.glitch_level);
   if (state.suspicion_delta >= 12) diorama.jolt();
+  // 正向反馈链：负向有 jolt/色差，正向必须有等重的存在感 ——
+  // HUD 提示两臂共享，暖色脉冲只属于箱庭臂（text_only 的 pulse 是空实现）
+  if (state.vocab_new_hits?.length) {
+    hud.noteVocab(state.vocab_new_hits, state.energy_refund);
+    diorama.pulse();
+  }
   $("#tag-text").textContent =
     `解码中 · ${state.stage_name} ${state.stage_index + 1}/${state.stage_total}`;
 }
@@ -246,16 +259,72 @@ function systemLine(text, good) {
   transcript.scrollTop = transcript.scrollHeight;
 }
 
-/** 被诊断的片段不打红叉，给它做色差 —— 在这个世界里，错误是信号缺陷 */
-function markFlaws(el, text, errors) {
-  if (!errors?.length) return;
-  let html = escapeHtml(text);
-  for (const err of errors) {
-    const span = escapeHtml(String(err.span || "").trim());
-    if (!span || !html.includes(span)) continue;
-    html = html.replace(span, `<span class="flaw">${span}</span>`);
+/** 玩家原句的双色渲染：瑕疵片段做色差（.flaw），首次命中的目标词发金光（.gleam）。
+
+    先在原始文本上定位区间、再逐片转义拼装。旧实现是在转义后的 HTML 里
+    includes(转义后的 span)：大小写、多余空格、跨转义实体，任何一个不对齐就
+    静默不高亮 —— 而"span 错了"在屏幕上和"没有错误"长得一模一样，线上评测都发现不了。
+    所以匹配失败现在必须上报（手机内测者不会开控制台，console.warn 等于没说）。 */
+function renderPlayerLine(el, text, errors, hits) {
+  const ranges = [];
+
+  for (const err of errors || []) {
+    const span = String(err.span || "").trim();
+    if (!span) continue;
+    const found = findRanges(text, spanPattern(span));
+    if (!found.length) {
+      console.warn("[flaw] span 未能定位到原句：", span);
+      sendClientEvent(sessionId, "span_match_failed", { span: span.slice(0, 120), turn: turnNo });
+      continue;
+    }
+    for (const r of found) addRange(ranges, { ...r, cls: "flaw" });
   }
+  for (const word of hits || []) {
+    for (const r of findRanges(text, vocabPattern(word))) {
+      addRange(ranges, { ...r, cls: "gleam" }); // 与 flaw 重叠时缺陷优先（先加的赢）
+    }
+  }
+
+  ranges.sort((a, b) => a.start - b.start);
+  let html = "";
+  let cursor = 0;
+  for (const r of ranges) {
+    html += escapeHtml(text.slice(cursor, r.start));
+    html += `<span class="${r.cls}">${escapeHtml(text.slice(r.start, r.end))}</span>`;
+    cursor = r.end;
+  }
+  html += escapeHtml(text.slice(cursor));
   el.innerHTML = html;
+}
+
+function addRange(ranges, next) {
+  if (ranges.some((r) => next.start < r.end && r.start < next.end)) return;
+  ranges.push(next);
+}
+
+/** span → 大小写不敏感、空白归一的正则（找出所有出现处，不止第一处） */
+function spanPattern(span) {
+  const escaped = span.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+  return new RegExp(escaped, "gi");
+}
+
+/** 目标词 → 整词 + s/es 复数容错，与后端 lang_utils.match_target_vocab 同口径。
+    日语词没有 \b 可用，退回子串匹配。 */
+function vocabPattern(word) {
+  const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return /^[\x00-\x7F]+$/.test(word)
+    ? new RegExp(`\\b${escaped}(?:es|s)?\\b`, "gi")
+    : new RegExp(escaped, "g");
+}
+
+function findRanges(text, re) {
+  const out = [];
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    if (!m[0].length) { re.lastIndex += 1; continue; }
+    out.push({ start: m.index, end: m.index + m[0].length });
+  }
+  return out;
 }
 
 /* ------------------------------------------------------------------ 杂项 */

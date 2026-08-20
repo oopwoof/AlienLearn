@@ -45,6 +45,18 @@
 .gauge[data-band="2"] { --fill: var(--ember); }
 .gauge[data-band="3"] { --fill: var(--chan-r); }
 
+/* 目标词收集：全屏唯一只涨不跌的条，用柚子金和"要偷的配料"呼应 */
+.bar--vocab i.on { background: var(--yuzu); }
+
+/* 命中时数字跳一下。gauge-val 是行内元素，transform 需要 inline-block */
+.gauge-val { display: inline-block; }
+.gauge-val.tick { animation: gauge-tick .55s cubic-bezier(.2, .9, .3, 1); }
+@keyframes gauge-tick {
+  0%   { transform: translateY(5px); color: var(--yuzu); }
+  55%  { transform: translateY(-2px); color: var(--yuzu); }
+  100% { transform: none; }
+}
+
 .gauge-note {
   margin-top: 6px;
   font-size: var(--step-xs);

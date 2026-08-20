@@ -189,12 +189,14 @@ export function mountDiorama(viewport) {
   const html = sceneSVG();
   viewport.insertAdjacentHTML(
     "afterbegin",
-    `<div class="chan chan--gb">${html}</div><div class="chan chan--r">${html}</div>`
+    `<div class="chan chan--gb">${html}</div><div class="chan chan--r">${html}</div><div class="pulse-layer"></div>`
   );
 
   const faces = viewport.querySelectorAll(".js-face");
   const bosses = viewport.querySelectorAll(".js-boss");
+  const pulseLayer = viewport.querySelector(".pulse-layer");
   let joltTimer = null;
+  let pulseTimer = null;
 
   return {
     setEmotion(emotion) {
@@ -216,6 +218,16 @@ export function mountDiorama(viewport) {
       viewport.classList.add("jolt");
       clearTimeout(joltTimer);
       joltTimer = setTimeout(() => viewport.classList.remove("jolt"), 400);
+    },
+
+    /** 命中目标词的暖色脉冲 —— jolt 的镜像：那个冷而抖，这个暖而稳。
+        负向惩罚有渲染管线级的存在感，正向奖励不能只是"什么都没发生"。 */
+    pulse() {
+      pulseLayer.classList.remove("pulse");
+      void pulseLayer.offsetWidth;
+      pulseLayer.classList.add("pulse");
+      clearTimeout(pulseTimer);
+      pulseTimer = setTimeout(() => pulseLayer.classList.remove("pulse"), 700);
     },
 
     boot() {

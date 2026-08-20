@@ -35,6 +35,8 @@ class TurnOutcome:
     vocab_new_hits: list[str] = field(default_factory=list)
     # 能量的实际变化量（返还被 energy_start 上限截掉的部分不虚报 —— 奖励也不撒谎）
     energy_delta: int = 0
+    # 本轮词汇返还的有效值（相对"没吃词"路径多出的能量）。HUD 的 +N 提示用它，不用名义值
+    energy_refund: int = 0
 
 
 @dataclass
@@ -165,7 +167,8 @@ class Session:
         without_refund = max(0, self.energy - Rules.energy_per_turn)
         self.energy = min(Rules.energy_start, max(0, self.energy - Rules.energy_per_turn + refund))
         # 有效返还 = 相对「没吃词」路径实际多出来的能量，被 100 上限截掉的部分不计
-        self.energy_regained += max(0, self.energy - without_refund)
+        energy_refund = max(0, self.energy - without_refund)
+        self.energy_regained += energy_refund
         energy_delta = self.energy - energy_before
 
         self.turn_count += 1
@@ -201,6 +204,7 @@ class Session:
             reasons=reasons,
             vocab_new_hits=vocab_new_hits,
             energy_delta=energy_delta,
+            energy_refund=energy_refund,
         )
 
     # ------------------------------------------------------------ 对外快照

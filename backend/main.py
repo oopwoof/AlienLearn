@@ -46,6 +46,19 @@ class TurnInput(BaseModel):
     text: str
 
 
+class ClientEvent(BaseModel):
+    """前端上报的埋点。存在的理由：手机内测者不会开控制台 ——
+    只 console.warn 的前端故障（比如 span 高亮匹配失败）等于没发生。"""
+
+    session_id: str
+    type: str = Field(max_length=40)
+    payload: dict = Field(default_factory=dict)
+
+
+# 白名单：前端能写进埋点库的事件类型。防止这个端点变成任意数据的倾倒口
+_CLIENT_EVENT_TYPES = {"span_match_failed"}
+
+
 # ------------------------------------------------------------------ 元信息
 @app.get("/api/meta")
 def meta() -> dict:
@@ -164,6 +177,28 @@ async def turn(body: TurnInput, request: Request) -> StreamingResponse:
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ------------------------------------------------------------------ 前端埋点
+@app.post("/api/client_event")
+def client_event(body: ClientEvent) -> dict:
+    if body.type not in _CLIENT_EVENT_TYPES:
+        raise HTTPException(status_code=422, detail="未知的前端事件类型")
+    session = STORE.get(body.session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    payload = body.payload
+    if len(json.dumps(payload, ensure_ascii=False).encode("utf-8")) > 2048:
+        payload = {"truncated": True}
+    telemetry.log(
+        session.session_id,
+        session.scene["scene_id"],
+        f"client_{body.type}",
+        payload,
+        player_id=session.player_id,
+    )
+    return {"ok": True}
 
 
 # ------------------------------------------------------------------ 指标

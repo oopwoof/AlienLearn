@@ -49,6 +49,17 @@ export async function getMetrics() {
   return res.ok ? res.json() : null;
 }
 
+/* 前端埋点，发后即忘。它本身就是用来报告前端故障的，
+   所以失败绝不能反过来影响游戏 —— 吞掉所有错误。 */
+export function sendClientEvent(sessionId, type, payload) {
+  if (!sessionId) return;
+  fetch("/api/client_event", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: sessionId, type, payload }),
+  }).catch(() => {});
+}
+
 /** 逐个产出后端事件：{event, data} */
 export async function* streamTurn(sessionId, text) {
   const res = await fetch("/api/turn", {

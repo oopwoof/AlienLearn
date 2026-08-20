@@ -108,6 +108,7 @@ async def run_turn(session: Session, text: str) -> AsyncIterator[tuple[str, dict
     state["reasons"] = outcome.reasons
     state["vocab_new_hits"] = outcome.vocab_new_hits
     state["energy_delta"] = outcome.energy_delta
+    state["energy_refund"] = outcome.energy_refund
     yield "state", state
 
     # ---- 4. 埋点：一行一轮的完整纠错轨迹

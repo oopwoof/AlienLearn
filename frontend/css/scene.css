@@ -76,6 +76,23 @@
   100% { transform: translate(0, 0); }
 }
 
+/* 命中目标词的暖色脉冲：jolt 的镜像（那个冷而抖，这个暖而稳）。
+   位于两个色彩通道之上、扫描线(::before, z:3)之下 */
+.pulse-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse at 50% 58%, rgba(242, 193, 78, .55), transparent 68%);
+}
+.pulse-layer.pulse { animation: vocab-pulse .65s ease-out; }
+@keyframes vocab-pulse {
+  0%   { opacity: 0; }
+  30%  { opacity: .38; }
+  100% { opacity: 0; }
+}
+
 /* 开机：视口从一条扫描线展开 */
 #viewport.booting { animation: power-on .9s cubic-bezier(.15,.9,.2,1); }
 @keyframes power-on {
@@ -206,6 +223,14 @@
   position: relative;
   color: #fff;
   text-shadow: -1.5px 0 var(--chan-r), 1.5px 0 var(--chan-c);
+}
+
+/* 首次命中的目标词：柚子金的辉光。选金不选青 —— 青是稳定度和 glitch 的
+   物理通道，语义已占用；柚子黄是全站强调色（这局要偷的那味配料），
+   和 .flaw 的红青分离在视觉上完全正交：裂开是坏，发光是好 */
+.line--player .gleam {
+  color: #FFE9B8;
+  text-shadow: 0 0 7px rgba(242, 193, 78, .85);
 }
 
 /* 被 Router 判为出戏的那一轮：老板的回答带一层冷调，像信号被过滤过 */

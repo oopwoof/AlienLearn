@@ -92,6 +92,7 @@ class TestEnergyEconomy:
         out = clean_turn(s, ["ramen"])
         assert out.vocab_new_hits == ["ramen"]
         assert out.energy_delta == -Rules.energy_per_turn + Rules.energy_per_vocab_hit
+        assert out.energy_refund == Rules.energy_per_vocab_hit
         assert s.energy == before + out.energy_delta
 
     def test_same_word_not_rewarded_twice(self):
@@ -114,6 +115,7 @@ class TestEnergyEconomy:
         out = clean_turn(s, ["ramen", "bowl", "soup"])  # 100 - 6 + 9 → 封顶 100
         assert s.energy == Rules.energy_start
         assert out.energy_delta == 0  # 实际生效值，被上限截掉的部分不虚报
+        assert out.energy_refund == Rules.energy_per_turn  # 有效返还 6：9 里有 3 被上限吃掉
 
     def test_no_refund_when_out_of_scope(self):
         s = Session(scene=make_scene())
