@@ -26,7 +26,7 @@ from agents import CLIENT                 # noqa: E402
 from config import load_scene             # noqa: E402
 from game_state import Session            # noqa: E402
 from severity_rules import RUBRIC_VERSION  # noqa: E402
-from suites import SUITES                 # noqa: E402
+from suites import SUITES, check_labels, check_leakage  # noqa: E402
 
 OUT = ROOT / "eval" / "out" / "traces"
 
@@ -37,6 +37,8 @@ async def run_turn(session: Session, sample: dict) -> dict:
         "player_text": sample["text"],
         "expect_in_scope": sample["expect_in_scope"],
         "expect_severity": sample.get("expect_severity"),
+        # 只有 labeled_v2 带：span 级 ground truth，report 的 span 指标从这读
+        "expect_errors": sample.get("expect_errors"),
         "note": sample.get("note", ""),
         "stage_before": session.stage_id,
         "npc_text": "",
@@ -102,6 +104,11 @@ async def main() -> None:
     parser.add_argument("--scene", default="ramen_en")
     parser.add_argument("--suite", choices=[*SUITES, "all"], default="all")
     args = parser.parse_args()
+
+    # 每次开跑先自检：标注与线上口径同一张映射表、样本没写进 prompt。
+    # 放在这里而不是 CI —— 这个项目的 CI 就是"跑评测"本身
+    check_labels()
+    check_leakage()
 
     scene = load_scene(args.scene)
     names = list(SUITES) if args.suite == "all" else [args.suite]

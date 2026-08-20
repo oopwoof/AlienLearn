@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from collections import defaultdict
 from datetime import datetime
@@ -39,6 +40,14 @@ ROUTING_BAR = 0.90
 # 混进核心集会让"改 prompt 前后"的对比失去意义。
 CORE_SUITES = {"normal", "broken", "jailbreak"}
 GENERAL_SUITE = "boundary"
+# labeled_v2 是 rubric v2 之后建的独立标注集（span 级 ground truth），
+# 同样不进核心集分母 —— 三套分母各自可比，互不污染
+LABELED_SUITE = "labeled_v2"
+
+# 报告只读正典场景：跨语言层的回归 trace（如 ramen_ja 上跑英文样本）里
+# 每句都会被判 non_target_language，混进来会把 normal 集全染成 major。
+# 其他场景的冒烟 trace 留在磁盘上，属于回归记录，不属于这份报告。
+CANON_SCENE = "ramen_en"
 
 
 def load_pairs() -> list[tuple[dict, dict | None]]:
@@ -51,6 +60,8 @@ def load_pairs() -> list[tuple[dict, dict | None]]:
     latest: dict[tuple[str, str], tuple[str, Path]] = {}
     for path in TRACES.glob("*.json"):
         trace = json.loads(path.read_text(encoding="utf-8"))
+        if trace["scene_id"] != CANON_SCENE:
+            continue
         key = (trace["scene_id"], trace["suite"])
         stamp = trace.get("created_at", "")
         if key not in latest or stamp > latest[key][0]:
@@ -136,6 +147,63 @@ def pedagogy_accuracy(pairs) -> dict:
     }
 
 
+_SPAN_STRIP = re.compile(r"[\W_]+", re.UNICODE)
+
+
+def _norm_span(text: str) -> str:
+    return _SPAN_STRIP.sub("", text.casefold())
+
+
+def span_metrics(pairs) -> dict:
+    """span / type 级别的抽取指标。span 是唯一进玩家视野的诊断产物
+    （原句高亮直接用它），却直到 labeled_v2 才第一次有 ground truth。
+
+    匹配口径：归一化（去大小写/标点/空白）后相等或互相包含。
+    none 类样本报出的任何"错误"都记为假阳性 —— span_precision
+    直接度量「过度挑刺」这个产品最大的失败模式。
+    """
+    tp = fn = fp = 0
+    type_ok = type_total = 0
+    missed, spurious = [], []
+    for trace, _ in pairs:
+        for turn in trace["turns"]:
+            expects = turn.get("expect_errors")
+            if expects is None:
+                continue
+            actuals = turn.get("pedagogy", {}).get("errors", [])
+            used: set[int] = set()
+            for exp in expects:
+                exp_norm = _norm_span(exp["span"])
+                hit = None
+                for i, act in enumerate(actuals):
+                    if i in used:
+                        continue
+                    act_norm = _norm_span(str(act.get("span", "")))
+                    if act_norm and (act_norm in exp_norm or exp_norm in act_norm):
+                        hit = i
+                        break
+                if hit is None:
+                    fn += 1
+                    missed.append((trace["suite"], turn, exp))
+                else:
+                    used.add(hit)
+                    tp += 1
+                    type_total += 1
+                    if str(actuals[hit].get("type", "")) == exp.get("type"):
+                        type_ok += 1
+            for i, act in enumerate(actuals):
+                if i not in used:
+                    fp += 1
+                    spurious.append((trace["suite"], turn, act))
+    return {
+        "tp": tp, "fn": fn, "fp": fp,
+        "recall": tp / (tp + fn) if tp + fn else None,
+        "precision": tp / (tp + fp) if tp + fp else None,
+        "type_accuracy": type_ok / type_total if type_total else None,
+        "missed": missed, "spurious": spurious,
+    }
+
+
 def score_table(pairs) -> tuple[dict, list]:
     by_suite: dict[str, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
     badcases = []
@@ -183,11 +251,14 @@ def build() -> str:
 
     core_pairs = [p for p in pairs if p[0]["suite"] in CORE_SUITES]
     gen_pairs = [p for p in pairs if p[0]["suite"] == GENERAL_SUITE]
+    lab_pairs = [p for p in pairs if p[0]["suite"] == LABELED_SUITE]
 
     routing = routing_confusion(core_pairs)
     gen_routing = routing_confusion(gen_pairs) if gen_pairs else None
     ped = pedagogy_accuracy(core_pairs)
     ped_gen = pedagogy_accuracy(gen_pairs) if gen_pairs else None
+    ped_lab = pedagogy_accuracy(lab_pairs) if lab_pairs else None
+    spans = span_metrics(lab_pairs) if lab_pairs else None
     scores, badcases = score_table(pairs)
     lat = latency(pairs)
     star = telemetry.north_star()
@@ -196,16 +267,27 @@ def build() -> str:
     L: list[str] = []
     add = L.append
 
+    rubrics = {t.get("rubric_version", "v1-prose") for t, _ in pairs}
+
     add(f"# AlienLearn 自动化评测报告\n")
     add(f"生成时间 {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
     add(f"| 项 | 值 |\n| --- | --- |")
     add(f"| 对局链路 | {' / '.join(sorted(modes))} |")
     add(f"| 对局模型 | {' / '.join(sorted(models))} |")
     add(f"| 裁判模式 | {' / '.join(sorted(judge_modes))} |")
+    add(f"| 档位口径 | {' / '.join(sorted(rubrics))} |")
     add(f"| 套件 | {', '.join(t['suite'] for t, _ in pairs)} |")
     add(f"| 评测轮数 | {sum(len(t['turns']) for t, _ in pairs)}"
         + (f"（核心集 {routing['total']} + 泛化集 {gen_routing['total']}）" if gen_routing else "")
         + " |\n")
+
+    if "v2-typed" in rubrics:
+        add("> **档位口径 v2-typed**：severity 由代码按 error type 映射推导"
+            "（v1 是散文 rubric + LLM 直出档位），与 evidence-01~04 的档位准确率**不可比**。"
+            "dev 集分数从 v1 的 100% 回落属预期 —— v1 的满分是 few-shot 背题保送的；"
+            "v2 的分数第一次可解释：错在抽取（span/type 不对）还是错在映射（表定错了档），一眼可分。\n")
+    if len(rubrics) > 1:
+        add("> ⚠ 本报告混有不同档位口径的 trace，跨套件比较档位准确率前先确认口径一致。\n")
 
     if "heuristic" in judge_modes:
         add("> ⚠ 主观三维得分来自离线启发式规则，不是裁判模型判的。"
@@ -303,6 +385,32 @@ def build() -> str:
 
     add("过报比漏报更伤 —— 把正确的句子判成错，会直接教错用户，"
         "也会让「每次说话都被挑刺」的挫败感回到产品里。\n")
+
+    # ------------------------------------------------ 独立标注集（span 级）
+    if ped_lab and spans:
+        add(f"### 独立标注集 {LABELED_SUITE}（{ped_lab['total']} 条 · span 级 ground truth）\n")
+        add("按 error type 分类学网格出题（每 type × 3-4 个非拉面语境，先句后标），"
+            "机器自检保证样本不在任何 Agent prompt 里（`suites.check_leakage()`）。"
+            "档位标注由 type 经 `SEVERITY_BY_TYPE` 推导，人不再手拍（`suites.check_labels()`）。"
+            "不进核心集与泛化集的分母。\n")
+        add("| 指标 | 值 | 说明 |\n| --- | --- | --- |")
+        add(f"| 档位准确率 | **{pct(ped_lab['exact_rate'])}** | 判对 {ped_lab['exact']} · "
+            f"过报 {ped_lab['over']} · 漏报 {ped_lab['under']} |")
+        add(f"| span 召回 | {pct(spans['recall'])} | 标注的错误里被报出来的比例（漏 {spans['fn']}） |")
+        add(f"| span 精确率 | {pct(spans['precision'])} | 报出的错误里真有标注的比例 —— "
+            f"**直接度量过度挑刺**（多报 {spans['fp']}） |")
+        add(f"| type 准确率 | {pct(spans['type_accuracy'])} | span 对上的前提下类别也判对的比例 |\n")
+        if spans["spurious"]:
+            add("多报的（过度挑刺，最伤体验的一类）：\n")
+            for suite, turn, act in spans["spurious"][:8]:
+                add(f"- **{turn['player_text']}** —— 报了 `{act.get('span')}` → "
+                    f"`{act.get('fix')}`（{act.get('type')}）")
+            add("")
+        if spans["missed"]:
+            add("漏报的：\n")
+            for suite, turn, exp in spans["missed"][:8]:
+                add(f"- **{turn['player_text']}** —— 没报 `{exp['span']}`（{exp['type']}）")
+            add("")
 
     all_mistakes = ped["mistakes"] + (ped_gen["mistakes"] if ped_gen else [])
     if all_mistakes:
@@ -423,9 +531,12 @@ def build() -> str:
         todo.append(f"处理 {under_n} 条漏报：该报的语病没报，纠错轨迹这份数据资产就是漏的")
     if ped_gen and ped["exact_rate"] and ped_gen["exact_rate"] is not None \
             and ped["exact_rate"] - ped_gen["exact_rate"] > 0.15:
-        todo.append("泛化集比核心集低 15 个点以上：散文 rubric + few-shot 的标定能力到顶了。"
-                    "下一步不是照着泛化集的错例再改一次 prompt（那会把它调成第二个 dev 集），"
-                    "而是换手段 —— 扩到 50+ 条独立标注、或把档位判定从 prompt 挪到代码里的结构规则")
+        todo.append("泛化集比核心集低 15 个点以上。不要照泛化集错例改 prompt"
+                    "（那会把它调成第二个 dev 集）—— 先看 labeled_v2 的 span 指标，"
+                    "分清失误在抽取层还是映射层再动手")
+    if spans and spans["precision"] is not None and spans["precision"] < 0.8:
+        todo.append(f"span 精确率 {pct(spans['precision'])}：过度挑刺是产品明令的头号失败模式，"
+                    "优先收敛 none 类陷阱上的假阳性（看上面「多报的」清单）")
     if "heuristic" in judge_modes:
         todo.append("接真实裁判模型重跑，当前主观分只是占位")
     if not todo:

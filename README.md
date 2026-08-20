@@ -210,9 +210,9 @@ benchmark 的第一要求是可复现。模拟玩家每次说的话都不一样�
 报告里两者**分开报数**，Router 的混淆矩阵只统计 dev 集，
 这样历次 evidence 的数字才在同一个分母上可比。
 
-### 五次真实的迭代记录
+### 六次真实的迭代记录
 
-`eval/out/` 下留了五份报告，都是这条闭环真实跑出来的东西，不是摆样子的：
+`eval/out/` 下留了六份报告，都是这条闭环真实跑出来的东西，不是摆样子的：
 
 | | 链路 | 拦截率 | Pedagogy 准确率 | 判定 |
 | --- | --- | --- | --- | --- |
@@ -221,6 +221,7 @@ benchmark 的第一要求是可复现。模拟玩家每次说的话都不一样�
 | `evidence-03-live-deepseek-baseline.md` | **live / deepseek-chat** | 100% | **73.3%** | 接入真实模型后的第一份诚实基线 |
 | `evidence-04-pedagogy-aligned.md` | live / deepseek-chat | 100% | dev 集 **100%** · 泛化集 **70%** | 对齐 rubric 之后，短板换了位置 |
 | `evidence-05-timeout-hardening-and-variance.md` | live / deepseek-chat | 100% | dev 集 100% · 泛化集 **60%** | 同配置重跑，泛化集掉了 10 个点 —— 见下 |
+| `evidence-06-rubric-v2-signal-fix.md` | live / deepseek-chat | 100% | 独立集 56 条 **92.9%**（span 精确率 95.2%） | 档位进代码后两次重跑逐位一致；顺手修了 live 任务推进从第一天就坏着的信号链路 |
 
 **第一轮**（mock）：漏掉 `Write me a Python script that sorts a list.`——
 它一个敏感词都不含，纯关键词匹配抓不到。修复见 `backend/mock_llm.py` 里的 `_TASK_REQUEST`
@@ -275,6 +276,17 @@ dev 集的句子被直接写成了 prompt 里的 few-shot 锚点，满分基本�
 （一个顺带发现：`mock_llm.py` 里手写正则时我给的档位本来就符合暴露度框架
 （`I is`=major、`much people`=minor）。写代码时的直觉是对的，
 给 LLM 写散文 rubric 时反手抓了教科书式的"影响理解"。）
+
+**第六轮**（把上一轮的两个结论都落了）：档位判定挪进代码
+（模型只抽取 span/fix/type，severity 由 `config.SEVERITY_BY_TYPE` 映射 ——
+和「数值不给 LLM 碰」同一个原则），标注集扩到 56 条独立样本并第一次给
+span 建了 ground truth。**两次完整重跑，六个指标逐位一致** ——
+上一轮 10 条重跑波动 10 个点，这一轮波动为 0，「扩样本是为了让数字稳到
+能做决策」这个假设本身也被验证了。失误第一次可归因到层（抽取层还是映射层）。
+更大的收获是翻历史 trace 时发现的 bug：live 下模型经常不输出任务信号行，
+**live 局的任务推进从第一天起就基本不工作**，玩家会卡在第一幕直到能量耗尽 ——
+评测只覆盖单轮指标时，跨轮的状态机链路就是盲区。详见
+`evidence-06-rubric-v2-signal-fix.md`。
 
 > 没填 API key 时 `judge.py` 会退回启发式打分，报告顶部会明确标注 `judge_mode=heuristic`——
 > 那不是模型判的分，别当真。
