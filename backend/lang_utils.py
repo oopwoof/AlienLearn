@@ -16,6 +16,24 @@ def count_target_words(text: str, mode: str) -> int:
     return len(_KANA.findall(text)) + len(_CJK.findall(text))
 
 
+def match_target_vocab(text: str, vocab: list[str], mode: str) -> list[str]:
+    """找出这句话里出现的目标词，按词表序去重返回。
+
+    判定只在后端做这一处 —— 前端拿现成结果渲染，避免两边口径漂移。
+    en：整词匹配 + s/es 复数容错（"seated" 不算命中 "seat"，任意前缀不容忍）；
+    ja：子串匹配（无空格分词）。
+    """
+    if mode == "space":
+        tokens = {t.casefold() for t in _LATIN_WORD.findall(text)}
+        return [
+            w for w in vocab
+            if w.casefold() in tokens
+            or f"{w.casefold()}s" in tokens
+            or f"{w.casefold()}es" in tokens
+        ]
+    return [w for w in vocab if w in text]
+
+
 def looks_like_target_language(text: str, language_code: str) -> bool:
     """粗判是否在用目标语言。够用就好 —— live 模式下模型会给出更准的判断。"""
     stripped = text.strip()

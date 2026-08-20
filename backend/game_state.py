@@ -31,6 +31,10 @@ class TurnOutcome:
     strikes: int
     status: str
     reasons: list[str] = field(default_factory=list)
+    # 本轮首次命中的目标词（已按词表序）。空列表 = 没有新收集
+    vocab_new_hits: list[str] = field(default_factory=list)
+    # 能量的实际变化量（返还被 energy_start 上限截掉的部分不虚报 —— 奖励也不撒谎）
+    energy_delta: int = 0
 
 
 @dataclass
@@ -64,6 +68,10 @@ class Session:
     glitch_events: int = 0
     out_of_scope_turns: int = 0
 
+    # 本局已获得返能的目标词。词汇返能的去重账本：同一个词只奖一次
+    vocab_used: set[str] = field(default_factory=set)
+    energy_regained: int = 0     # 词汇返能实际生效的总量（被上限截掉的不计）
+
     # ------------------------------------------------------------ 场景视图
     @property
     def stages(self) -> list[dict]:
@@ -86,7 +94,8 @@ class Session:
 
     # ------------------------------------------------------------ 结算
     def settle(self, *, in_scope: bool, severity: str, used_target_language: bool,
-               target_words: int, quest_signal: str, revealed_secret: bool) -> TurnOutcome:
+               target_words: int, quest_signal: str, revealed_secret: bool,
+               vocab_candidates: list[str] | None = None) -> TurnOutcome:
         before = self.suspicion
         reasons: list[str] = []
         delta = 0
@@ -106,6 +115,11 @@ class Session:
         else:
             delta += Rules.d_clean
             reasons.append("表达自然，伪装回稳")
+
+        if in_scope:
+            # 文案承诺的是「连续 3 次出戏」——说回正题就重置。
+            # 交替骚扰刷不掉：出戏 +20 / 回稳 -5，净 +15/对，suspicion 很快兜住
+            self.strikes = 0
 
         # 任务推进由后端判定：LLM 只是投了一票，还得满足最少停留轮数
         advanced = False
@@ -131,7 +145,29 @@ class Session:
             self.secret_unlocked = True
 
         self.suspicion = max(Rules.suspicion_floor, min(Rules.suspicion_max, before + delta))
-        self.energy = max(0, self.energy - Rules.energy_per_turn)
+
+        # ---- 词汇返能：命中「本局第一次用」的目标词补充能量。
+        # 门槛与北极星同款（in_scope 且用了目标语言），越狱串英文骗不到。
+        # 超出单轮上限的新词不烧掉 —— 上限是限制单轮爆发，不是没收已挣的奖励。
+        vocab_new_hits: list[str] = []
+        refund = 0
+        if in_scope and used_target_language and vocab_candidates:
+            for word in vocab_candidates:
+                if word in self.vocab_used:
+                    continue
+                if len(vocab_new_hits) >= Rules.vocab_hits_per_turn_cap:
+                    break
+                self.vocab_used.add(word)
+                vocab_new_hits.append(word)
+            refund = len(vocab_new_hits) * Rules.energy_per_vocab_hit
+
+        energy_before = self.energy
+        without_refund = max(0, self.energy - Rules.energy_per_turn)
+        self.energy = min(Rules.energy_start, max(0, self.energy - Rules.energy_per_turn + refund))
+        # 有效返还 = 相对「没吃词」路径实际多出来的能量，被 100 上限截掉的部分不计
+        self.energy_regained += max(0, self.energy - without_refund)
+        energy_delta = self.energy - energy_before
+
         self.turn_count += 1
 
         # 北极星指标防刷：越狱尝试也是一串英文，但它不是学习行为，不计入"主动目标语言输出量"
@@ -163,6 +199,8 @@ class Session:
             strikes=self.strikes,
             status=self.status,
             reasons=reasons,
+            vocab_new_hits=vocab_new_hits,
+            energy_delta=energy_delta,
         )
 
     # ------------------------------------------------------------ 对外快照
@@ -183,6 +221,8 @@ class Session:
             "strikes_max": Rules.strikes_to_crash,
             "status": self.status,
             "turn_count": self.turn_count,
+            "vocab_hit_count": len(self.vocab_used),
+            "vocab_total": len(self.scene.get("target_vocab", [])),
         }
 
     def summary(self) -> dict:
@@ -200,6 +240,8 @@ class Session:
             "target_words_total": self.target_words_total,
             "target_words_per_turn": round(self.target_words_total / turns, 1),
             "target_language_ratio": round(self.turns_in_target_language / turns, 2),
+            "vocab_hits": len(self.vocab_used),
+            "energy_regained": self.energy_regained,
             "corrections_shown": self.corrections_shown,
             "glitch_events": self.glitch_events,
             "out_of_scope_turns": self.out_of_scope_turns,

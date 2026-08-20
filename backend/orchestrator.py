@@ -27,6 +27,7 @@ from typing import AsyncIterator
 import agents
 import telemetry
 from game_state import Session
+from lang_utils import match_target_vocab
 
 
 async def run_turn(session: Session, text: str) -> AsyncIterator[tuple[str, dict]]:
@@ -90,6 +91,9 @@ async def run_turn(session: Session, text: str) -> AsyncIterator[tuple[str, dict
         target_words=pedagogy["target_word_count"],
         quest_signal=signal["quest_signal"],
         revealed_secret=bool(signal.get("revealed_secret")),
+        vocab_candidates=match_target_vocab(
+            text, scene.get("target_vocab", []), scene.get("word_counting", "space")
+        ),
     )
     if pedagogy["errors"]:
         session.corrections_shown += 1
@@ -102,6 +106,8 @@ async def run_turn(session: Session, text: str) -> AsyncIterator[tuple[str, dict
     state["stage_advanced"] = outcome.stage_advanced
     state["suspicion_delta"] = outcome.suspicion_delta
     state["reasons"] = outcome.reasons
+    state["vocab_new_hits"] = outcome.vocab_new_hits
+    state["energy_delta"] = outcome.energy_delta
     yield "state", state
 
     # ---- 4. 埋点：一行一轮的完整纠错轨迹
@@ -122,6 +128,8 @@ async def run_turn(session: Session, text: str) -> AsyncIterator[tuple[str, dict
             "suspicion_delta": outcome.suspicion_delta,
             "glitch_level": outcome.glitch_level,
             "energy": outcome.energy,
+            "energy_delta": outcome.energy_delta,
+            "vocab_new_hits": outcome.vocab_new_hits,
             "status": outcome.status,
             "llm_mode": agents.CLIENT.mode,
             "variant": session.variant,
