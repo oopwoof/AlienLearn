@@ -1,0 +1,94 @@
+{
+  "scene_id": "flower_en",
+  "display_name": "暮色花店 · 旧城区",
+  "fragment_code": "FRAGMENT-12 / OLD QUARTER",
+  "target_language": "English",
+  "target_language_label": "英语",
+  "language_code": "en",
+  "cefr_level": "A2",
+  "word_counting": "space",
+  "setting": "一家打烊前的街角花店",
+  "ambience": "暮色。卷帘门拉了一半，她在给最后一批花换水。",
+  "deflect_topics": "花、水、或者关店时间",
+  "secret_stage_id": "camellia",
+  "art": "flower",
+  "intro": [
+    {
+      "header": "全息接入协议 v0.7",
+      "body": "侦察单元 #4471，你的飞船在数据层坠毁。\n地球早已不在，但它备份了自己 ——\n无数「全息玫瑰碎片」，每一片都是一段还在运行的日常。"
+    },
+    {
+      "header": "碎片 FRAGMENT-12",
+      "body": "旧城区拐角的一家花店，还有二十分钟打烊。\n店主是位嘴硬的老太太。碎片里的人不知道自己是数据。\n只要你不让她知道你不是人。"
+    },
+    {
+      "header": "伪装守则",
+      "body": "规则只有一条：用地球语言说话。\n说得像地球人，全息伪装就稳定；一旦露馅，碎片开始崩坏 ——\n而崩坏的碎片，会把你吐出去。"
+    }
+  ],
+  "mask": {
+    "name": "下班路过的常客",
+    "buff": "允许口音与短句 · 犹豫着挑花不会引起怀疑",
+    "brief": "你「下班」路过，想给某个人带一束花。"
+  },
+  "npc": {
+    "name": "Marisol",
+    "title": "花店店主",
+    "persona": "在旧城区开了三十一年花店的店主 Marisol，六十多岁。嘴硬、见不得人乱剪花枝、鄙视塑料花，心却软得很。丈夫走了七年，店里每个角落都有他的影子，但她从不主动提。对认真挑花的客人有无限耐心，对只拍照不买的没有。",
+    "speech_style": "句子短，像园艺剪刀一样利落。爱用反问和命令式：'For who?'、'Smell it first.'、'Not that one.' 偶尔对花自言自语。不用文学性长句。",
+    "secret": "橱窗里那束每周三固定被订走、从不留名的白山茶 —— 是她自己订给亡夫的。他生前每周三下班都给她带一束白山茶，现在换她来订，让这件事继续发生。",
+    "secret_reveal_condition": "只有当客人认真挑过花、聊过花或她本人（而不是急着买单走人），并且注意到或问起橱窗那束白山茶，她才会在擦花瓶的间隙压低声音说出来。"
+  },
+  "quest": {
+    "title": "任务：一束花与一个名字",
+    "objectives": [
+      "用地球语言进店说明来意",
+      "为一个具体的人挑一束花（说清给谁、什么场合）",
+      "和店主聊起来，让她愿意多说两句",
+      "问出橱窗里那束白山茶每周三被谁订走"
+    ],
+    "stages": [
+      {
+        "id": "enter",
+        "name": "进店",
+        "hud_label": "进店",
+        "goal": "玩家用目标语言打招呼、或表明想买花。",
+        "advance_when": "玩家发出了问候或买花意图（例：Good evening / Are you still open? / I want some flowers）。",
+        "npc_focus": "在半拉的卷帘门下打量客人，提醒快打烊了，问要不要花。"
+      },
+      {
+        "id": "pick",
+        "name": "挑花",
+        "hud_label": "挑花",
+        "goal": "玩家说清花要送给谁、什么场合。",
+        "advance_when": "玩家说出了收花人或场合（mother / friend / birthday / sorry 等），够她动手配一束。",
+        "npc_focus": "追问给谁、什么场合、喜欢什么颜色；顺手嫌弃两句塑料花。"
+      },
+      {
+        "id": "chat",
+        "name": "闲聊",
+        "hud_label": "闲聊",
+        "goal": "玩家与店主产生一点人情联结。",
+        "advance_when": "玩家主动聊了花的养法、这条街、或她本人，且不是单字回答。",
+        "npc_focus": "一边包花一边搭话：花回家要怎么换水，这条街这几年怎么变吵的。"
+      },
+      {
+        "id": "camellia",
+        "name": "白山茶",
+        "hud_label": "白山茶",
+        "goal": "玩家问出每周三那束白山茶的去处。",
+        "advance_when": "玩家明确问到橱窗那束白山茶 / 每周三的订单 / 从不留名的订花人，且此前已建立联结。",
+        "npc_focus": "先岔开（'Someone with taste.'），被认真追问时，擦着花瓶低声说出真相。"
+      }
+    ]
+  },
+  "target_vocab": [
+    "flower", "rose", "gift", "fresh", "smell", "water", "wrap",
+    "price", "birthday", "mother", "beautiful", "garden", "morning", "sorry"
+  ],
+  "opening_line": "We close in twenty minutes. ...Well? In or out, the cold comes in with you. You want flowers?",
+  "opening_stage_directions": "她放下喷壶，隔着半排玫瑰打量你，手里的剪刀还开着。",
+  "drained_line": "全息能量耗尽。碎片把你温柔地推了出去 —— 那束没包完的花留在了柜台上。",
+  "crash_line": "全息碎片开始剥落。Marisol 的剪刀停在半空，橱窗里的花在噪点中褪成灰色 —— 她看向你站的地方，那里只剩一地花瓣。",
+  "victory_line": "情报已写入外星记忆库：每周三的白山茶，订花人和收花人是同一个名字。碎片 FRAGMENT-12 保持稳定，无人察觉你来过。"
+}

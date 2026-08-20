@@ -114,6 +114,7 @@ def create_session(body: NewSession) -> dict:
                 ],
             },
             "target_vocab": scene["target_vocab"],
+            "art": scene.get("art", "ramen"),
             "opening_line": scene["opening_line"],
             "opening_stage_directions": scene["opening_stage_directions"],
         },

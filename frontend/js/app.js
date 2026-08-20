@@ -18,10 +18,10 @@ const composer = $("#composer");
 const statusLine = $("#f-status");
 
 const hud = new Hud(document);
-/* text_only 分组要把箱庭整个拿掉，所以后面会被替换成空实现 ——
-   用空对象而不是在每个调用点加 if，是为了避免"漏了一处就调到未初始化的箱庭"。 */
-let diorama = mountDiorama(viewport);
+/* 箱庭挂载推迟到拿到场景之后（art 字段决定画哪张）。text_only 分组
+   保持空实现 —— 用空对象而不是在每个调用点加 if，避免"漏一处就调到未初始化的箱庭"。 */
 const NO_DIORAMA = { boot() {}, setEmotion() {}, setGlitch() {}, jolt() {}, pulse() {} };
+let diorama = NO_DIORAMA;
 
 let sessionId = null;
 let scene = null;
@@ -77,8 +77,8 @@ async function boot() {
   if (payload.state.variant === "text_only") {
     document.body.dataset.variant = "text_only";
     viewport.hidden = true;
-    diorama = NO_DIORAMA;
   } else {
+    diorama = mountDiorama(viewport, scene.art);
     diorama.boot();
     diorama.setEmotion("tired");
   }
