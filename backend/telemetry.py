@@ -121,6 +121,29 @@ def north_star() -> dict:
     }
 
 
+def player_stats(player_id: str) -> dict:
+    """一个玩家的跨局累计，回流给结算屏 —— 数据不该只进分析师的库，
+    也要还给产生它的人（「你的第 3 局 · 累计 87 词」是再来一局的理由）。
+
+    只认精确匹配的 player_id：老数据那一列是 NULL，天然被排除。
+    """
+    conn = db()
+    rows = [json.loads(r["payload"]) for r in conn.execute(
+        "SELECT payload FROM events WHERE event_type='session_end' AND player_id=? ORDER BY ts",
+        (player_id,),
+    )]
+    if not rows:
+        return {"sessions": 0, "wins": 0, "total_target_words": 0,
+                "best_words": 0, "best_stage_index": 0}
+    return {
+        "sessions": len(rows),
+        "wins": sum(1 for r in rows if r.get("status") == "won"),
+        "total_target_words": sum(r.get("target_words_total", 0) or 0 for r in rows),
+        "best_words": max(r.get("target_words_total", 0) or 0 for r in rows),
+        "best_stage_index": max(r.get("stage_index", 0) or 0 for r in rows),
+    }
+
+
 def retention() -> dict:
     """假设二的原始判据：被频繁纠错的玩家，次日还回来吗？
 

@@ -352,7 +352,76 @@
 .btn--ghost { border-color: var(--edge); color: var(--signal-dim); }
 .btn--ghost:hover { background: var(--edge); color: var(--signal); }
 
+/* 回访玩家的短版开机：动画压到 0.35s，别让老玩家等仪式感 */
+.boot--fast .boot-mark { animation-duration: .35s; }
+.boot--fast .boot-sweep { animation-duration: .35s; }
+.boot--fast .boot-status { animation-delay: .1s; animation-duration: .25s; }
+
 /* ---------------------------------------------------- 结算屏 */
+/* 三种结局要有三种脸色：赢是青，崩是红，耗尽是灰 */
+.card--won .eyebrow { color: var(--chan-c); }
+.card--crashed .eyebrow { color: var(--chan-r); }
+.card--drained .eyebrow { color: var(--signal-dim); }
+
+/* 幕进度：差一点和差很远必须看得出区别 */
+.prog {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 16px;
+  flex-wrap: wrap;
+}
+.prog-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--step-xs);
+  color: var(--signal-dim);
+}
+.prog-node i {
+  font-style: normal;
+  font-family: var(--f-data);
+  font-size: 10px;
+  width: 18px;
+  height: 18px;
+  line-height: 17px;
+  text-align: center;
+  border: 1px solid var(--edge);
+}
+.prog-node.done { color: var(--signal); }
+.prog-node.done i { border-color: var(--chan-c); color: var(--chan-c); }
+.prog-node.now { color: var(--yuzu); }
+.prog-node.now i { border-color: var(--yuzu); background: var(--yuzu); color: var(--void); }
+.prog-link { flex: 0 0 12px; height: 1px; background: var(--edge); }
+
+.ending-why { font-size: 15px; }
+
+/* 跨局累计：数据要还给产生它的人 */
+.cume {
+  margin: 14px 0 0;
+  font-size: var(--step-s);
+  line-height: 1.8;
+  color: var(--signal-dim);
+}
+.cume b { color: var(--signal); font-weight: 600; font-variant-numeric: tabular-nums; }
+.cume .record {
+  color: var(--yuzu);
+  border: 1px solid var(--yuzu);
+  padding: 1px 6px;
+  font-size: 10px;
+  letter-spacing: .14em;
+}
+
+#metrics-box { margin-top: 14px; }
+#metrics-box[hidden] { display: none; }
+.metrics-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  font-size: var(--step-s);
+  color: var(--signal-dim);
+}
+.metrics-grid b { color: var(--signal); font-weight: 500; }
 .scoreboard {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));

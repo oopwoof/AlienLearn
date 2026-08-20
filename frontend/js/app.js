@@ -1,6 +1,6 @@
 /* 主循环：接入 → 开场 → 逐轮对话 → 结算 */
 
-import { createSession, getMeta, sendClientEvent, streamTurn } from "./api.js";
+import { createSession, getMeta, getPlayerStats, sendClientEvent, streamTurn } from "./api.js";
 import { mountDiorama } from "./diorama.js";
 import { Hud } from "./hud.js";
 import { runIntro, showEnding } from "./intro.js";
@@ -209,7 +209,11 @@ async function send() {
     diorama.setGlitch(ended.status === "won" ? 0 : 3);
     if (ended.status !== "won") diorama.jolt();
     lock(ended.status === "won" ? "任务完成" : "本局结束");
-    setTimeout(() => showEnding(overlay, card, ended), 1700);
+    // 跨局累计趁这 1.7s 的余韵取回来：session_end 已落库，包含本局
+    const stats = getPlayerStats();
+    setTimeout(async () => {
+      showEnding(overlay, card, ended, { stages: scene.quest.stages, stats: await stats });
+    }, 1700);
     return;
   }
 

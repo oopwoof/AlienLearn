@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import re
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
@@ -118,6 +119,15 @@ def create_session(body: NewSession) -> dict:
         },
         "llm_mode": CLIENT.mode,
     }
+
+
+@app.get("/api/player/{player_id}/stats")
+def player_stats(player_id: str) -> dict:
+    # player_id 是前端 localStorage 里的 UUID（或 anonymous）。收窄字符集，
+    # 别让路径参数变成能注入任意内容的口子
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", player_id):
+        raise HTTPException(status_code=422, detail="非法的玩家标识")
+    return telemetry.player_stats(player_id)
 
 
 @app.get("/api/session/{session_id}/summary")

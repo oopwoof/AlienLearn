@@ -191,3 +191,18 @@ class TestStrikes:
                 break
             clean_turn(s)
         assert s.status == "crashed"
+        # 结算屏要能说清主因：这里是伪装度崩的，不是连续出戏
+        assert s.summary()["crash_reason"] == "suspicion"
+
+    def test_crash_reason_strikes(self):
+        s = Session(scene=make_scene())
+        out_of_scope_turn(s)
+        out_of_scope_turn(s)
+        out_of_scope_turn(s)
+        assert s.status == "crashed"
+        assert s.summary()["crash_reason"] == "strikes"
+
+    def test_no_crash_reason_when_not_crashed(self):
+        s = Session(scene=make_scene())
+        clean_turn(s)
+        assert s.summary()["crash_reason"] == ""

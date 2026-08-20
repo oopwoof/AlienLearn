@@ -49,6 +49,16 @@ export async function getMetrics() {
   return res.ok ? res.json() : null;
 }
 
+/* 跨局累计（结算屏用）。拿不到就当没有 —— 累计是锦上添花，不能挡住结算 */
+export async function getPlayerStats() {
+  try {
+    const res = await fetch(`/api/player/${playerId()}/stats`);
+    return res.ok ? res.json() : null;
+  } catch {
+    return null;
+  }
+}
+
 /* 前端埋点，发后即忘。它本身就是用来报告前端故障的，
    所以失败绝不能反过来影响游戏 —— 吞掉所有错误。 */
 export function sendClientEvent(sessionId, type, payload) {

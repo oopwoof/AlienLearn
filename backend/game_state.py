@@ -62,6 +62,7 @@ class Session:
 
     turn_count: int = 0
     history: list[dict] = field(default_factory=list)   # [{"role": "player"|"npc", "text": ...}]
+    crash_reason: str = ""           # crashed 时的主因：suspicion | strikes。结算屏据此措辞
 
     # ---- 指标累计（北极星 + 验证假设用）
     target_words_total: int = 0
@@ -187,6 +188,7 @@ class Session:
             self.status = "won"
         elif self.suspicion >= Rules.suspicion_max or self.strikes >= Rules.strikes_to_crash:
             self.status = "crashed"
+            self.crash_reason = "suspicion" if self.suspicion >= Rules.suspicion_max else "strikes"
         elif self.energy <= 0:
             self.status = "drained"
 
@@ -253,6 +255,7 @@ class Session:
             "energy_left": self.energy,
             "stage_reached": self.stage["name"],
             "stage_index": self.stage_index,
+            "crash_reason": self.crash_reason,
         }
 
 
