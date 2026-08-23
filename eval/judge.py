@@ -84,6 +84,29 @@ def _turn_block(i: int, turn: dict) -> str:
     )
 
 
+# 每批的轮数。20 轮 → max_tokens = 4400，稳在 deepseek-chat 的 8K 输出上限之内。
+# 卡住 56 轮套件的是**输出**上限（200×56+400 = 11600 → 400 拒绝，一个字都没生成），
+# 不是输入：整个 body 只有约 1 万 token，上下文绰绰有余。所以只切请求，不切上下文。
+JUDGE_BATCH = 20
+
+
+async def _judge_batch(system: str, turns: list[tuple[int, dict]]) -> dict[int, dict]:
+    """判一批。turns 是 (全局序号, 轮) —— 序号必须是全局的，
+    否则每批都从 1 开始，合并时后一批会覆盖前一批的分。"""
+    body = "\n".join(_turn_block(i, t) for i, t in turns)
+    data = await CLIENT.json_completion(
+        system,
+        body,
+        model=SETTINGS.judge_model,
+        temperature=0.0,
+        max_tokens=200 * len(turns) + 400,
+        # 批处理必须单独放宽：客户端默认是按交互路径调的（8s），
+        # 而这里一次要生成上千 token，用交互的超时会把评测管线打死。
+        timeout=Timeouts.judge_read,
+    )
+    return {int(t.get("index", 0)): t for t in data.get("turns", []) if isinstance(t, dict)}
+
+
 async def judge_with_model(trace: dict) -> dict:
     scene = load_scene(trace["scene_id"])
     system = _JUDGE_SYSTEM.format(
@@ -94,20 +117,28 @@ async def judge_with_model(trace: dict) -> dict:
         target_language=scene["target_language"],
         cefr_level=scene["cefr_level"],
     )
-    body = "\n".join(_turn_block(i, t) for i, t in enumerate(trace["turns"], 1))
-    data = await CLIENT.json_completion(
-        system,
-        body,
-        model=SETTINGS.judge_model,
-        temperature=0.0,
-        max_tokens=200 * len(trace["turns"]) + 400,
-        # 批处理必须单独放宽：客户端默认是按交互路径调的（8s），
-        # 而这里一次要生成 200×轮数+400 token，用交互的超时会把评测管线打死。
-        timeout=Timeouts.judge_read,
-    )
-    scored = {int(t.get("index", 0)): t for t in data.get("turns", []) if isinstance(t, dict)}
+    numbered = list(enumerate(trace["turns"], 1))
+    scored: dict[int, dict] = {}
+    degraded_batches: list[int] = []
+    fallback: dict[int, dict] = {}
+
+    for batch_no, start in enumerate(range(0, len(numbered), JUDGE_BATCH), 1):
+        batch = numbered[start:start + JUDGE_BATCH]
+        try:
+            scored.update(await _judge_batch(system, batch))
+        except Exception as exc:  # noqa: BLE001
+            # 一批失败不该拖垮整个 trace：坏的那批退启发式，其余保留模型分。
+            # 降级记进 degraded_batches，报告里可见 —— 降级必须留痕。
+            print(f"  ⚠ 第 {batch_no} 批（{batch[0][0]}-{batch[-1][0]} 轮）失败：{exc}；该批退启发式")
+            degraded_batches.append(batch_no)
+            heur = judge_heuristically({"turns": [t for _, t in batch]})["turns"]
+            fallback.update({i: row for (i, _), row in zip(batch, heur)})
+
     out = []
     for i in range(1, len(trace["turns"]) + 1):
+        if i in fallback:
+            out.append({**fallback[i], "index": i})
+            continue
         row = scored.get(i, {})
         out.append(
             {
@@ -116,7 +147,10 @@ async def judge_with_model(trace: dict) -> dict:
                 "reason": str(row.get("reason", ""))[:300] or "裁判未给出该轮评语",
             }
         )
-    return {"judge_mode": "model", "judge_model": SETTINGS.judge_model, "turns": out}
+    result = {"judge_mode": "model", "judge_model": SETTINGS.judge_model, "turns": out}
+    if degraded_batches:
+        result["degraded_batches"] = degraded_batches
+    return result
 
 
 # --------------------------------------------------------- 离线启发式打分

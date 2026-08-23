@@ -121,6 +121,27 @@ def degraded_turns(pairs) -> list[tuple[str, dict]]:
     return out
 
 
+def judge_degradations(pairs) -> list[tuple[str, str]]:
+    """裁判侧的降级。
+
+    与 degraded_turns 分开：那个查的是**对局**降级（退回规则桩，会让 Pedagogy
+    的客观分虚高）；这里查的是**判分**降级（整份退启发式，或某几批失败），
+    只影响主观三维分。judgment 文件里的这两个字段此前没有任何地方读，
+    等于降级了也看不见。
+    """
+    out = []
+    for trace, judgment in pairs:
+        if not judgment:
+            continue
+        name = judgment.get("trace_file", trace["suite"])
+        if judgment.get("degraded"):
+            out.append((name, f"整份退回启发式：{judgment['degraded']}"))
+        elif judgment.get("degraded_batches"):
+            batches = ", ".join(f"第 {n} 批" for n in judgment["degraded_batches"])
+            out.append((name, f"{batches}调用失败，该批退回启发式"))
+    return out
+
+
 def pedagogy_accuracy(pairs) -> dict:
     exact = over = under = 0
     mistakes = []
@@ -292,6 +313,16 @@ def build() -> str:
     if "heuristic" in judge_modes:
         add("> ⚠ 主观三维得分来自离线启发式规则，不是裁判模型判的。"
             "填好 `.env` 里的 `LLM_API_KEY` 后重跑 `python eval/judge.py --force` 才是真实分数。\n")
+
+    # 裁判侧的降级与对局侧的降级是两回事，分开报：前者只让主观三维分不可信，
+    # 后者会让 Pedagogy 的客观分虚高（规则桩照 dev 集写，等于背答案）
+    judge_issues = judge_degradations(pairs)
+    if judge_issues:
+        add(f"> ⚠ **{len(judge_issues)} 份判分有降级**，涉及的轮次主观三维分由启发式规则给出，"
+            "不代表裁判模型的判断：")
+        for name, why in judge_issues:
+            add(f"> - `{name}` —— {why}")
+        add("")
 
     degraded = degraded_turns(pairs)
     if degraded:
