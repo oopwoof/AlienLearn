@@ -87,6 +87,7 @@
     "hot", "delicious", "recipe", "secret", "tonight", "hungry", "please"
   ],
   "opening_line": "Eh! Don't stand there dripping. Rain again... Sit, sit. You want food or you want to swim?",
+  "opening_line_returning": "Eh — you again. Same seat's free. Rain follows you around, huh? Sit. What tonight?",
   "opening_stage_directions": "老板从蒸汽后面抬头，用毛巾指了指吧台的空位。",
   "drained_line": "全息能量耗尽。碎片把你温柔地推了出去 —— 今晚的雨你只淋了一半。",
   "crash_line": "全息碎片开始剥落。Tetsuo 的脸在噪点里错位了半秒——他看向你的位置，那里已经没有客人了。",

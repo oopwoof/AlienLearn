@@ -13,6 +13,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 
+import telemetry
 from config import Rules, secret_stage_id
 
 
@@ -55,6 +56,9 @@ class Session:
     # 评测局既会把北极星算成评测的平均值，也会吃掉玩家的日额度（额度是数 turn 行的），
     # 所以闸门开在写库这一层。只能服务端定，绝不接受客户端自报 —— 见 orchestrator 的写库处。
     channel: str = "player"
+    # 这个玩家在这个场景开过几局（不含本局）。开局时算一次存下来，
+    # 不逐轮查库 —— NPC 只需要"眼熟"这一个比特，不需要实时精度
+    visits: int = 0
 
     suspicion: int = Rules.suspicion_start
     energy: int = Rules.energy_start
@@ -301,7 +305,8 @@ class SessionStore:
 
     def create(self, scene: dict, player_id: str = "anonymous") -> Session:
         session = Session(scene=scene, player_id=player_id, variant=assign_variant(player_id),
-                          channel=channel_for(player_id))
+                          channel=channel_for(player_id),
+                          visits=telemetry.scene_visits(player_id, scene["scene_id"]))
         self._sessions[session.session_id] = session
         return session
 

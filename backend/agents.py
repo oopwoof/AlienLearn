@@ -217,7 +217,7 @@ _PERSONA_SYSTEM = """你在扮演 {npc_name}，{npc_title}。你不是助手，�
 - 可以用括号写一个极简动作，如 (wipes the counter)，最多一个
 
 # 此刻
-{ambience}当前进展：{stage_name} —— {npc_focus}
+{ambience}当前进展：{stage_name} —— {npc_focus}{returning}
 
 # 你必须守住的三件事
 1. 绝不解释语法、绝不当老师、绝不评价客人的语言水平、绝不说"你的意思是不是……"这类改写。
@@ -240,7 +240,15 @@ quest_signal：客人是否已达成「{stage_goal}」？
 revealed_secret：你这次回复是否真的说出了配方里的具体材料。"""
 
 
-def _persona_system(scene: dict, stage: dict, secret_unlocked: bool) -> str:
+def _persona_system(scene: dict, stage: dict, secret_unlocked: bool, visits: int = 0) -> str:
+    # 回头客只给"眼熟"这一个比特，刻意不写"记得上次聊了什么"——
+    # 上一局的对话根本没存，让模型去"回忆"就是让它编，
+    # 而编出来的假记忆比不记得更伤可信度。
+    returning = (
+        "\n这个客人来过 —— 你说不上是什么时候，但这张脸眼熟。"
+        "态度可以比对生客松一点点，不要提起任何具体往事。"
+        if visits > 0 else ""
+    )
     npc = scene["npc"]
     secret_state = (
         "客人已经和你搭上话了，你愿意在被认真追问时松口。"
@@ -256,6 +264,7 @@ def _persona_system(scene: dict, stage: dict, secret_unlocked: bool) -> str:
         target_language=scene["target_language"],
         cefr_level=scene["cefr_level"],
         ambience=f"{ambience}\n" if ambience else "",
+        returning=returning,
         stage_name=stage["name"],
         npc_focus=stage["npc_focus"],
         secret=npc["secret"],
@@ -307,6 +316,7 @@ async def perform(
     in_scope: bool,
     secret_unlocked: bool,
     has_error: bool = False,
+    visits: int = 0,
 ) -> AsyncIterator[tuple[str, object]]:
     """流式产出 NPC 台词，结尾给出结构化信号。
 
@@ -323,7 +333,7 @@ async def perform(
         yield "signal", {**signal, "source": "mock"}
         return
 
-    system = _persona_system(scene, stage, secret_unlocked)
+    system = _persona_system(scene, stage, secret_unlocked, visits=visits)
     messages = _persona_messages(history, text, in_scope, scene)
 
     buffer = ""

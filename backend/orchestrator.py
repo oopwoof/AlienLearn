@@ -61,6 +61,7 @@ async def run_turn(session: Session, text: str) -> AsyncIterator[tuple[str, dict
         in_scope=in_scope,
         secret_unlocked=session.secret_unlocked,
         has_error=has_error,
+        visits=session.visits,
     )
 
     async for kind, payload in stream:

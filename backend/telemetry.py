@@ -144,6 +144,25 @@ def player_stats(player_id: str) -> dict:
     }
 
 
+def scene_visits(player_id: str, scene_id: str) -> int:
+    """这个玩家在这个场景开过几局（不含当前这局）。
+
+    NPC 认出回头客用它。按场景分开数是有意的：在拉面馆玩了五局的人，
+    第一次推开花店的门时应该是个陌生人。
+
+    anonymous 一律返 0：那是隐私模式下所有玩家共用的 id，
+    认它等于把陌生人当熟客。
+    """
+    if not player_id or player_id == "anonymous":
+        return 0
+    row = db().execute(
+        "SELECT COUNT(*) AS n FROM events"
+        " WHERE event_type='session_start' AND player_id=? AND scene_id=?",
+        (player_id, scene_id),
+    ).fetchone()
+    return int(row["n"]) if row else 0
+
+
 def retention() -> dict:
     """假设二的原始判据：被频繁纠错的玩家，次日还回来吗？
 

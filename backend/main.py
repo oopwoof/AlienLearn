@@ -118,7 +118,10 @@ def create_session(body: NewSession) -> dict:
             },
             "target_vocab": scene["target_vocab"],
             "art": scene.get("art", "ramen"),
-            "opening_line": scene["opening_line"],
+            # 回头客换一句开场白。走纯数据通路（前端只管把 opening_line 打出来），
+            # 所以这里换掉就够了，前端零改动。没写 returning 版的场景自动回落
+            "opening_line": (scene.get("opening_line_returning") or scene["opening_line"]
+                             if session.visits > 0 else scene["opening_line"]),
             "opening_stage_directions": scene["opening_stage_directions"],
         },
         "llm_mode": CLIENT.mode,
