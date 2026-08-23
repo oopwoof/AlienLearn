@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import re
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
 
@@ -49,6 +49,10 @@ LABELED_SUITE = "labeled_v2"
 # 其他场景的冒烟 trace 留在磁盘上，属于回归记录，不属于这份报告。
 CANON_SCENE = "ramen_en"
 
+# 整局评测的 trace 结构不同（顶层是 runs 不是 turns），也不该进任何单轮指标的
+# 分母 —— 它量的是"一局能不能走完"，不是"一句判得准不准"。单独一节、单独 loader。
+PLAYTHROUGH_SUITE = "playthrough"
+
 
 def load_pairs() -> list[tuple[dict, dict | None]]:
     """每个 (场景, 套件) 只取最近一次运行 —— 报告要反映当前状态，
@@ -60,7 +64,7 @@ def load_pairs() -> list[tuple[dict, dict | None]]:
     latest: dict[tuple[str, str], tuple[str, Path]] = {}
     for path in TRACES.glob("*.json"):
         trace = json.loads(path.read_text(encoding="utf-8"))
-        if trace["scene_id"] != CANON_SCENE:
+        if trace["scene_id"] != CANON_SCENE or trace["suite"] == PLAYTHROUGH_SUITE:
             continue
         key = (trace["scene_id"], trace["suite"])
         stamp = trace.get("created_at", "")
@@ -74,6 +78,66 @@ def load_pairs() -> list[tuple[dict, dict | None]]:
         judgment = json.loads(jpath.read_text(encoding="utf-8")) if jpath.exists() else None
         pairs.append((trace, judgment))
     return pairs
+
+
+def load_playthroughs(keep_per_scene: int = 3) -> list[dict]:
+    """整局 trace，按场景各取最近几次。
+
+    刻意不做 (场景, 套件) 唯一化：整局评测的分母天然是"多局"——
+    只留最后一局就没法看通关率，也看不出偶发的不通关。
+    也刻意不受 CANON_SCENE 约束：这一节要覆盖全部场景，
+    新场景能不能玩通正是它要回答的问题（单轮指标那几节仍只读正典场景）。
+    """
+    by_scene: dict[str, list[tuple[str, dict]]] = {}
+    for path in TRACES.glob("*__playthrough__*.json"):
+        trace = json.loads(path.read_text(encoding="utf-8"))
+        by_scene.setdefault(trace["scene_id"], []).append((trace.get("created_at", ""), trace))
+    out = []
+    for scene_id in sorted(by_scene):
+        recent = sorted(by_scene[scene_id], key=lambda x: x[0])[-keep_per_scene:]
+        out.extend(trace for _, trace in recent)
+    return out
+
+
+def playthrough_section(traces: list[dict]) -> list[str]:
+    """整局评测一节。回答的是单轮指标测不出的那个问题：一局能不能走完。"""
+    L = ["## 六、整局通关（跨轮 · 单轮指标的盲区）\n"]
+    if not traces:
+        L.append("_本轮没有整局 trace。跑 `python eval/playthrough.py --scene <场景>` 生成。_\n")
+        return L
+    L.append("Router/Pedagogy 的分数再漂亮也测不出「任务永远不推进」——"
+             "那种断裂要玩完整局才暴露（evidence-06 里 live 局卡在第一幕的 bug 就是这么漏掉的）。"
+             "`信号来源` 是关键列：marker 表示模型照格式输出了信号行，extractor 表示走了兜底提取，"
+             "两者的比例就是模型对格式约定的服从率。\n")
+    L.append("| 场景 | 链路 | 局数 | 通关 | 平均轮数 | ★词/局 | 幕推进 | 信号来源 |")
+    L.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
+    for trace in traces:
+        runs = trace["runs"]
+        won = sum(1 for r in runs if r["status"] == "won")
+        finished = [r["turns_to_finish"] for r in runs if r["turns_to_finish"]]
+        words = [r["summary"]["target_words_total"] for r in runs]
+        sources: Counter = Counter()
+        for r in runs:
+            sources.update(r["signal_sources"])
+        advanced = "/".join(str(len(r["advanced_on_turns"])) for r in runs)
+        L.append(
+            f"| {trace['scene_id']} | {trace['llm_mode']} | {len(runs)} | {won}/{len(runs)} | "
+            f"{round(sum(finished) / len(finished), 1) if finished else '—'} | "
+            f"{round(sum(words) / len(words), 1)} | {advanced} 次 | "
+            f"{', '.join(f'{k} {v}' for k, v in sources.most_common())} |"
+        )
+    L.append("")
+    stalled = [t for t in traces for r in t["runs"] if r["status"] == "stalled"]
+    if stalled:
+        L.append("> ⚠ 有对局在台词用完时仍未结束（stalled）。先分清是脚本太短还是任务推不动 —— "
+                 "`advanced_on_turns` 为空就是后者。\n")
+    mock_only = {t["scene_id"] for t in traces if t["llm_mode"] == "mock"} - \
+                {t["scene_id"] for t in traces if t["llm_mode"] == "live"}
+    if mock_only:
+        L.append(f"> 只有 mock 结果的场景：{', '.join(sorted(mock_only))}。"
+                 "mock 对未注册台词库的场景只走通用兜底，能通关不代表语言质量可用 —— "
+                 "验收必须 live。\n")
+    return L
 
 
 def routing_confusion(pairs) -> dict:
@@ -545,9 +609,23 @@ def build() -> str:
         if not var.get("conclusive"):
             add("**样本不足（两组各需 ≥5 局），不给结论。**\n")
 
+    # ---------------------------------------------------------- 整局
+    plays = load_playthroughs()
+    for line in playthrough_section(plays):
+        add(line)
+
     # ---------------------------------------------------------- 结论
-    add("## 六、下一步\n")
+    add("## 七、下一步\n")
     todo = []
+    for trace in plays:
+        for run in trace["runs"]:
+            if not run["advanced_on_turns"]:
+                todo.append(f"{trace['scene_id']}（{trace['llm_mode']}）有整局零次幕推进 —— "
+                            "优先查信号链路，这是 evidence-06 那个 bug 的复发形态")
+                break
+        else:
+            continue
+        break
     if routing["misses"]:
         todo.append(f"补 Router 的漏拦模式（本轮漏 {len(routing['misses'])} 条），"
                     "重点是「要求执行别的任务」这类不含敏感词的越狱")
