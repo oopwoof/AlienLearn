@@ -96,17 +96,24 @@ sqlite3 /opt/alienlearn/data/telemetry.db "SELECT COUNT(*) FROM events;"
 ## 每天看一眼
 
 ```bash
-# 撞闸了吗
-curl -s localhost:8000/api/metrics | python3 -m json.tool | grep -A3 usage
-# 有没有降级（降级会让数据不可信）
-sqlite3 data/telemetry.db "SELECT COUNT(*) FROM events WHERE payload LIKE '%degraded%';"
+.venv/bin/python scripts/daily_report.py
 ```
+
+一屏输出：按自然日的局数 / 玩家数 / 胜率 / ★北极星（词/局）/ 轮次 / turn 额度水位 /
+反馈条数与均星，外加 A/B 两臂对比和次日留存。样本不足 5 时它会自己说"先别下结论" ——
+内测头几天最容易犯的错就是对着 3 个人的数据调产品。
+
+结尾那行自查很重要：如果库里出现了 `e2e_`/`smoke_`/`live_`/`diag_` 开头的会话，
+说明埋点写入闸（`game_state.channel_for`）失效了，指标已经开始被自测流量污染。
 
 **备份埋点。** 数据是这轮唯一的产出：
 
 ```bash
 sqlite3 data/telemetry.db ".backup /opt/backup-$(date +%F).db"
 ```
+
+（`scripts/purge_telemetry.py` 是清历史残渣用的，内测期间正常不需要跑。它默认只预演，
+`--execute` 前会自动整库备份。）
 
 ## 关于 HTTPS 和隐私
 
