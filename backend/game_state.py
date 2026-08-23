@@ -64,6 +64,9 @@ class Session:
     energy: int = Rules.energy_start
     stage_index: int = 0
     stage_turns: int = 0             # 在当前阶段待了几轮，配合 min_turns_per_stage 控制节奏
+    # 本幕里玩家说过的话。任务目标是累积的（"说清要买什么"达成过就一直算达成），
+    # 信号提取器只读当前这一轮时会一路判 stay —— 这份短名单就是给它看的
+    stage_lines: list[str] = field(default_factory=list)
     strikes: int = 0
     status: str = "playing"          # playing | crashed | won | drained
     secret_unlocked: bool = False    # 到达秘密幕且已建立联结 —— NPC 才会松口
@@ -144,6 +147,7 @@ class Session:
         if may_advance:
             self.stage_index += 1
             self.stage_turns = 0
+            self.stage_lines = []      # 新的一幕，累积从头算
             advanced = True
             delta += Rules.d_stage_advance
             reasons.append(f"任务推进 → {self.stage['name']}")
@@ -192,7 +196,11 @@ class Session:
         if level > 0:
             self.glitch_events += 1
 
-        if revealed_secret:
+        # 秘密没解锁就"说出秘密"只能是误判：NPC 此刻拿到的指令是一律岔开话题。
+        # live 实测遇到过 —— 第三幕一句意味深长的话被判成 revealed_secret，
+        # 整局当场判胜，玩家根本没走到最后一幕，结局文案却在说"情报已写入记忆库"。
+        # 和「出戏轮不算通关」同一个道理：通关的条件由状态机把关，不由模型的一票决定。
+        if revealed_secret and self.secret_unlocked:
             self.status = "won"
         elif self.suspicion >= Rules.suspicion_max or self.strikes >= Rules.strikes_to_crash:
             self.status = "crashed"

@@ -317,6 +317,8 @@ async def perform(
     secret_unlocked: bool,
     has_error: bool = False,
     visits: int = 0,
+    stage_lines: list[str] | None = None,
+    stage_turns: int = 0,
 ) -> AsyncIterator[tuple[str, object]]:
     """流式产出 NPC 台词，结尾给出结构化信号。
 
@@ -368,7 +370,8 @@ async def perform(
         # 模型没输出信号行 —— 走提取器兜底，并把来源标出来（降级必须可见）
         if len(buffer) > emitted:
             yield "delta", buffer[emitted:]
-        fallback = await extract_signal(scene, stage, text, buffer.strip())
+        fallback = await extract_signal(scene, stage, text, buffer.strip(),
+                                        recent=stage_lines, stage_turns=stage_turns)
         yield "signal", {**fallback, "source": "extractor"}
         return
 
@@ -402,26 +405,38 @@ NPC 是 {npc_title}。当前任务阶段的目标：「{stage_goal}」
 推进判定依据：{advance_when}
 NPC 的秘密（判断这次回复是否真的说出了它的具体内容）：{secret}
 
+**目标是累积的，不是单轮的。** 客人这一幕已经聊了 {stage_turns} 轮。
+只要目标在这一幕里达成过（哪怕是更早的一轮，或者从 NPC 的反应能看出已经达成 ——
+比如东西已经递过去了、书架已经指过了），就填 advance。
+不要因为"这一轮没有重新说一遍"就判 stay：客人说完正事以后接着闲聊，是正常人的说话方式。
+
 只输出 JSON：
 {{"emotion":"warm|annoyed|suspicious|conspiratorial|amused|tired",
   "quest_signal":"advance|stay",
   "revealed_secret":true/false}}"""
 
 
-async def extract_signal(scene: dict, stage: dict, text: str, npc_text: str) -> dict:
+async def extract_signal(scene: dict, stage: dict, text: str, npc_text: str,
+                         recent: list[str] | None = None, stage_turns: int = 0) -> dict:
     """信号兜底：Persona 没按格式输出 <<<SIGNAL>>> 时，用一次小型非流式调用补提取。
 
     这不是锦上添花 —— live 下 marker 的服从率长期只有一两成，没有这层兜底，
     live 局的任务永远停在第一幕直到能量耗尽。副作用是这类轮次末尾多 ~1s；
     好处是 revealed_secret 反而更准：提取器读的是 NPC 实际说出的话。
+
+    recent / stage_turns 是给"累积判定"用的：任务目标（说清要买什么、聊起来）
+    往往在更早的一轮就达成了，只读当前这一轮会一路判 stay ——
+    live 实测三个场景都卡在第二幕好几轮，正是这个原因。
     """
     system = _SIGNAL_EXTRACT_SYSTEM.format(
         npc_title=scene["npc"]["title"],
         stage_goal=stage["goal"],
         advance_when=stage["advance_when"],
         secret=scene["npc"]["secret"][:120],
+        stage_turns=stage_turns + 1,
     )
-    user = f"玩家：{text}\nNPC 回复：{npc_text}"
+    history = "".join(f"（这一幕更早）玩家：{line}\n" for line in (recent or []))
+    user = f"{history}玩家：{text}\nNPC 回复：{npc_text}"
     try:
         data = await asyncio.wait_for(
             CLIENT.json_completion(system, user, temperature=0.0, max_tokens=80),

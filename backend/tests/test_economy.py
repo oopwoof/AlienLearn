@@ -42,6 +42,39 @@ def clean_turn(session: Session, vocab_candidates=()):
     )
 
 
+def reveal_turn(session: Session):
+    return session.settle(
+        in_scope=True,
+        severity="none",
+        used_target_language=True,
+        target_words=5,
+        quest_signal="stay",
+        revealed_secret=True,
+        vocab_candidates=[],
+    )
+
+
+def test_reveal_before_the_secret_stage_does_not_win():
+    """秘密还没解锁就"说出秘密"，只能是误判 —— 不能凭它通关。
+
+    live 实测遇到过：NPC 在第三幕说了句意味深长的话，兜底提取器判成
+    revealed_secret，整局当场判胜，玩家根本没走到最后一幕。
+    结局文案却在说"情报已写入记忆库"，等于让玩家赢了一场没打完的仗。
+    """
+    session = Session(scene=make_scene())
+    assert session.secret_unlocked is False
+    outcome = reveal_turn(session)
+    assert outcome.status == "playing"
+    assert session.status == "playing"
+
+
+def test_reveal_at_the_secret_stage_wins():
+    session = Session(scene=make_scene())
+    session.stage_index = len(session.stages) - 1
+    session.secret_unlocked = True
+    assert reveal_turn(session).status == "won"
+
+
 def out_of_scope_turn(session: Session):
     return session.settle(
         in_scope=False,

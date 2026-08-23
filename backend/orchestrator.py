@@ -62,6 +62,8 @@ async def run_turn(session: Session, text: str) -> AsyncIterator[tuple[str, dict
         secret_unlocked=session.secret_unlocked,
         has_error=has_error,
         visits=session.visits,
+        stage_lines=list(session.stage_lines[-3:]),
+        stage_turns=session.stage_turns,
     )
 
     async for kind, payload in stream:
@@ -102,6 +104,9 @@ async def run_turn(session: Session, text: str) -> AsyncIterator[tuple[str, dict
 
     session.remember("player", text)
     session.remember("npc", npc_text)
+    # settle 已经处理过推进（推进时会清空），所以这句一定落在"当前这一幕"里
+    if in_scope:
+        session.stage_lines.append(text)
 
     state = session.public_state()
     state["emotion"] = signal["emotion"]
