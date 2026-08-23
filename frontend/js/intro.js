@@ -2,7 +2,7 @@
    开场存在的理由：新玩家不需要任何口头解释就能明白自己在干什么。
    回访玩家走快速通道 —— 世界观只值得看一次，词表值得每局看一眼。 */
 
-import { getMetrics } from "./api.js";
+import { getMetrics, sendClientEvent } from "./api.js";
 import { typeOut } from "./typewriter.js";
 
 const nextTick = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -141,8 +141,27 @@ function stageProgress(stages, summary, status) {
   return `<div class="prog">${nodes}</div>`;
 }
 
+/** 明日目标：结算屏唯一的"下一次"入口。
+    三种结局都要给 —— 只有 drained 有钩子的时候，通关的人反而无处可去。 */
+function tomorrowHook(status, summary, nextScene) {
+  const swap = nextScene
+    ? `明天换一个碎片：<b>${nextScene.display_name}</b>（${nextScene.target_language_label}）——
+       另一套词表，另一个不肯说的人。`
+    : `明天再来一次：同一家店，换个问法，看看能不能少露几次马脚。`;
+  if (status === "won") {
+    return `情报到手。${swap}`;
+  }
+  if (status === "crashed") {
+    return `伪装是练出来的。明天回来，先把话说稳，再去够那个秘密。`;
+  }
+  const stuck = summary.vocab_hits === 0
+    ? `这一局一个目标词都没用上 —— 词表里每个新词都能换 3 点能量，那是撑到最后一幕的唯一办法。`
+    : `你收了 ${summary.vocab_hits} 个词。多说几个没用过的，能量就够走到最后一幕。`;
+  return stuck;
+}
+
 export function showEnding(overlay, card, { status, line, summary }, extras = {}) {
-  const { stages = [], stats = null } = extras;
+  const { stages = [], stats = null, nextScene = null, sessionId = null } = extras;
 
   // 中段：按结局分形态。won 摆全套战绩；crashed 说清主因；drained 给距离感和下一局的钩子
   let middle = "";
@@ -199,7 +218,16 @@ export function showEnding(overlay, card, { status, line, summary }, extras = {}
     ${middle}
     <div class="scoreboard">${tiles.map(tile).join("")}</div>
     ${cume}
+    <p class="tomorrow"><span class="etch">下一次</span>${tomorrowHook(status, summary, nextScene)}</p>
     <div class="rule"></div>
+    <div class="feedback" id="feedback">
+      <span class="etch">这一局怎么样？</span>
+      <div class="stars" id="stars">${[1, 2, 3, 4, 5]
+        .map((n) => `<button type="button" class="star" data-n="${n}" aria-label="${n} 星">★</button>`)
+        .join("")}</div>
+      <input id="fb-text" type="text" maxlength="120" placeholder="哪里别扭？想说什么都行（可不填）">
+      <button class="btn btn--ghost" id="fb-send" type="button">发送</button>
+    </div>
     <p class="body" style="min-height:0;font-size:14px">本局的纠错轨迹已匿名记录（无账号、无个人信息），
       只用来改进碎片本身。</p>
     <div class="card-actions">
@@ -210,6 +238,23 @@ export function showEnding(overlay, card, { status, line, summary }, extras = {}
 
   overlay.hidden = false;
   card.querySelector("#replay").addEventListener("click", () => location.reload(), { once: true });
+
+  // 反馈：内测者不会为了一句话去加微信，但会顺手点个星。
+  // fire-and-forget —— 发送失败也不打扰玩家，这不是他们该操心的事
+  let stars = 0;
+  const fb = card.querySelector("#feedback");
+  fb.querySelector("#stars").addEventListener("click", (e) => {
+    const btn = e.target.closest(".star");
+    if (!btn) return;
+    stars = Number(btn.dataset.n);
+    fb.querySelectorAll(".star").forEach((s) => s.classList.toggle("on", Number(s.dataset.n) <= stars));
+  });
+  card.querySelector("#fb-send").addEventListener("click", () => {
+    const text = card.querySelector("#fb-text").value.trim();
+    if (!stars && !text) return;                       // 空反馈不发，别往库里灌噪声
+    sendClientEvent(sessionId, "feedback", { stars, text, status });
+    fb.innerHTML = `<span class="etch">收到了 —— 谢谢。这条会直接影响下一版。</span>`;
+  });
 
   // 累计指标：内嵌人话版，不再裸链 JSON
   card.querySelector("#show-metrics").addEventListener("click", async (e) => {

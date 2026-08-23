@@ -25,6 +25,7 @@ let diorama = NO_DIORAMA;
 
 let sessionId = null;
 let scene = null;
+let sceneList = [];        // 结算屏推荐"下一个碎片"用
 let busy = false;
 let turnNo = 0;
 
@@ -47,6 +48,8 @@ async function boot() {
   // title 在触屏上永远不显示 —— mock 状态必须有可见文本，不然手机内测者
   // 分不清自己玩的是不是真模型（那一局的数据也就没法解释）
   if (!live) $("#mock-note").hidden = false;
+
+  sceneList = meta.scenes || [];
 
   let payload;
   try {
@@ -92,6 +95,15 @@ async function boot() {
 }
 
 /** 场景选择。只有一个场景时不打扰；记住上次的选择 —— 回访玩家大概率还玩同一层 */
+/** 结算屏的"明天换个碎片"：优先推不同语言层（换语言比换店更像新东西），
+    其次任何别的场景。只有一个场景时返回 null，文案会退回"再来一次同一家店"。 */
+function suggestNextScene() {
+  const others = sceneList.filter((s) => s.scene_id !== scene?.scene_id);
+  if (!others.length) return null;
+  const otherLang = others.find((s) => s.target_language_label !== scene?.target_language_label);
+  return otherLang || others[0];
+}
+
 function chooseScene(meta) {
   const scenes = meta.scenes || [];
   if (scenes.length <= 1) return meta.default_scene;
@@ -249,7 +261,12 @@ async function send() {
     // 跨局累计趁这 1.7s 的余韵取回来：session_end 已落库，包含本局
     const stats = getPlayerStats();
     setTimeout(async () => {
-      showEnding(overlay, card, ended, { stages: scene.quest.stages, stats: await stats });
+      showEnding(overlay, card, ended, {
+        stages: scene.quest.stages,
+        stats: await stats,
+        nextScene: suggestNextScene(),
+        sessionId,
+      });
     }, 1700);
     return;
   }

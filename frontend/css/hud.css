@@ -432,6 +432,54 @@
   letter-spacing: .14em;
 }
 
+/* 明日目标：结算屏唯一的"下一次"入口。用柚子黄左边框标出来，
+   因为这是三种结局里最该被看见的一行（尤其对刚崩盘的人） */
+.tomorrow {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-left: 2px solid var(--yuzu);
+  background: rgba(242, 193, 78, .06);
+  font-size: var(--step-s);
+  line-height: 1.75;
+  color: var(--signal-dim);
+}
+.tomorrow .etch {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--yuzu);
+}
+.tomorrow b { color: var(--signal); font-weight: 600; }
+
+/* 局内反馈：内测者不会为了一句话去加微信，但会顺手点个星 */
+.feedback { margin: 14px 0 0; }
+.feedback .etch { display: block; margin-bottom: 8px; }
+.feedback .stars { display: flex; gap: 4px; margin-bottom: 8px; }
+.feedback .star {
+  background: none;
+  border: 0;
+  padding: 4px 6px;
+  min-height: 44px;              /* 触屏点得中 */
+  font-size: 22px;
+  line-height: 1;
+  color: var(--line);
+  cursor: pointer;
+  transition: color .12s;
+}
+.feedback .star.on,
+.feedback .star:hover { color: var(--yuzu); }
+.feedback input {
+  width: 100%;
+  min-height: 44px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, .03);
+  border: 1px solid var(--line);
+  color: var(--signal);
+  font: inherit;
+  font-size: var(--step-s);
+}
+.feedback input::placeholder { color: var(--signal-dim); opacity: .6; }
+
 #metrics-box { margin-top: 14px; }
 #metrics-box[hidden] { display: none; }
 .metrics-grid {

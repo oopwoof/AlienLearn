@@ -57,7 +57,7 @@ class ClientEvent(BaseModel):
 
 
 # 白名单：前端能写进埋点库的事件类型。防止这个端点变成任意数据的倾倒口
-_CLIENT_EVENT_TYPES = {"span_match_failed"}
+_CLIENT_EVENT_TYPES = {"span_match_failed", "feedback"}
 
 
 # ------------------------------------------------------------------ 元信息

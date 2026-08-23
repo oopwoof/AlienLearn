@@ -64,6 +64,16 @@ def test_oversized_payload_is_truncated_not_stored(client):
     assert _logged("client_span_match_failed") == [{"truncated": True}]
 
 
+def test_feedback_is_whitelisted_and_logged(client):
+    """结算屏的星级+一句话。内测者不会为了一句话去加微信，但会顺手点个星。"""
+    sid = _new_session()
+    res = client.post("/api/client_event", json={
+        "session_id": sid, "type": "feedback",
+        "payload": {"stars": 4, "text": "第三幕有点卡", "status": "won"}})
+    assert res.status_code == 200
+    assert _logged("client_feedback") == [{"stars": 4, "text": "第三幕有点卡", "status": "won"}]
+
+
 def test_eval_channel_session_does_not_log(client):
     """自测脚本走 HTTP 上报也不落库 —— 与 turn/session_end 同一道闸。"""
     sid = _new_session(player_id="e2e_stage3")

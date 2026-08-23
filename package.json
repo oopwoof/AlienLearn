@@ -1,0 +1,11 @@
+{
+  "name": "alienlearn-frontend-tests",
+  "private": true,
+  "description": "只为前端 jsdom 冒烟而存在：前端本身是零依赖的原生 ES module，不打包、不编译。",
+  "scripts": {
+    "test": "node frontend/tests/dom_smoke_ending.mjs && node frontend/tests/dom_smoke_arts.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^29.1.1"
+  }
+}
