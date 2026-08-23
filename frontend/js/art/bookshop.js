@@ -14,7 +14,7 @@ function books(x, y, h, spec) {
   let cx = x;
   return spec
     .map(([w, fill]) => {
-      const r = `<rect x="${cx}" y="${y + (h - h)}" width="${w}" height="${h}" fill="${fill}"/>`;
+      const r = `<rect x="${cx}" y="${y}" width="${w}" height="${h}" fill="${fill}"/>`;
       cx += w;
       return r;
     })
@@ -89,12 +89,13 @@ export function bookshopArt() {
   <rect x="78" y="18" width="1" height="4" fill="#2A2118"/>
   <rect x="79" y="21" width="3" height="1" fill="#2A2118"/>
 
-  <!-- 台灯：绿玻璃罩，全场唯一光源 -->
-  <rect x="118" y="40" width="2" height="14" fill="#4A4438"/>
-  <rect x="112" y="36" width="14" height="5" fill="#2E4A38"/>
-  <rect x="112" y="36" width="14" height="1" fill="#3E6048"/>
-  <rect class="flicker" x="115" y="41" width="8" height="2" fill="#FFE9B8"/>
-  <rect class="glow" x="106" y="38" width="26" height="16" fill="#E8C05A" opacity=".16"/>
+  <!-- 台灯：绿玻璃罩，全场唯一光源。摆在柜台右端而不是他身后 ——
+       灯杆压在肩膀上会让人读成"他扛着一盏灯" -->
+  <rect x="147" y="40" width="2" height="15" fill="#4A4438"/>
+  <rect x="141" y="35" width="14" height="5" fill="#2E4A38"/>
+  <rect x="141" y="35" width="14" height="1" fill="#3E6048"/>
+  <rect class="flicker" x="144" y="40" width="8" height="2" fill="#FFE9B8"/>
+  <rect class="glow" x="134" y="37" width="26" height="18" fill="#E8C05A" opacity=".16"/>
 
   <!-- 灯下的浮尘 -->
   ${dust()}
@@ -116,10 +117,13 @@ export function bookshopArt() {
     <rect x="91" y="23" width="2" height="16" fill="#A87548"/>
     <rect x="89" y="24" width="2" height="8" fill="#B2AB9E"/>
     <rect x="109" y="24" width="2" height="8" fill="#B2AB9E"/>
-    <rect x="90" y="17" width="20" height="6" fill="#B2AB9E"/>
-    <rect x="90" y="17" width="20" height="2" fill="#C6BFB4"/>
-    <rect x="88" y="20" width="2" height="4" fill="#B2AB9E"/>
-    <rect x="110" y="20" width="2" height="4" fill="#B2AB9E"/>
+    <!-- 发际线后退 + 两鬓花白：别和花店老太太的银发髻长成同一顶白帽子 -->
+    <rect x="93" y="19" width="14" height="4" fill="#8E877C"/>
+    <rect x="93" y="19" width="14" height="1" fill="#A8A196"/>
+    <rect x="89" y="21" width="4" height="7" fill="#B2AB9E"/>
+    <rect x="107" y="21" width="4" height="7" fill="#B2AB9E"/>
+    <rect x="91" y="23" width="2" height="4" fill="#A8A196"/>
+    <rect x="107" y="23" width="2" height="4" fill="#A8A196"/>
     <g class="js-face">${FACES.tired}</g>
   </g>
 
@@ -133,11 +137,11 @@ export function bookshopArt() {
   <rect x="108" y="65" width="1" height="5" fill="#332A1E"/>
 
   <!-- 柜台后那一格：那本不卖的书。刻意单独一格、单独一本、正对灯光 -->
-  <rect x="128" y="55" width="16" height="6" fill="#241E16"/>
-  <rect x="129" y="56" width="14" height="4" fill="#1A150F"/>
-  <rect x="134" y="55" width="4" height="6" fill="#7A2834"/>
-  <rect x="134" y="55" width="4" height="1" fill="#A83A48"/>
-  <rect x="135" y="57" width="2" height="1" fill="#E8C05A" opacity=".7"/>
+  <rect x="126" y="55" width="16" height="6" fill="#241E16"/>
+  <rect x="127" y="56" width="14" height="4" fill="#1A150F"/>
+  <rect x="132" y="55" width="4" height="6" fill="#7A2834"/>
+  <rect x="132" y="55" width="4" height="1" fill="#A83A48"/>
+  <rect x="133" y="57" width="2" height="1" fill="#E8C05A" opacity=".7"/>
 
   <!-- 柜台上：摊开的一本 + 一摞待上架 -->
   <rect x="60" y="56" width="20" height="4" fill="#C9BEAA"/>
