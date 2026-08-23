@@ -10,11 +10,12 @@
    （表情几何见 art/faces.js）。
    ============================================================ */
 
+import { bookshopArt } from "./art/bookshop.js";
 import { FACES } from "./art/faces.js";
 import { flowerArt } from "./art/flower.js";
 import { ramenArt } from "./art/ramen.js";
 
-const ARTS = { ramen: ramenArt, flower: flowerArt };
+const ARTS = { ramen: ramenArt, flower: flowerArt, bookshop: bookshopArt };
 
 const AB_BY_LEVEL = [0, 1.5, 4, 8];   // 每档 Glitch 的通道分离像素
 

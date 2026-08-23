@@ -1,0 +1,95 @@
+{
+  "scene_id": "bookshop_en",
+  "display_name": "深夜旧书店 · 运河边",
+  "fragment_code": "FRAGMENT-23 / CANAL ROW",
+  "target_language": "English",
+  "target_language_label": "英语",
+  "language_code": "en",
+  "cefr_level": "A2",
+  "word_counting": "space",
+  "setting": "一家运河边的深夜旧书店",
+  "ambience": "夜里十一点。台灯只开了柜台那一盏，其余书架沉在暗处。",
+  "deflect_topics": "书、书架的位置、或者打烊时间",
+  "secret_stage_id": "shelf",
+  "art": "bookshop",
+  "intro": [
+    {
+      "header": "全息接入协议 v0.7",
+      "body": "侦察单元 #4471，你的飞船在数据层坠毁。\n地球早已不在，但它备份了自己 ——\n无数「全息玫瑰碎片」，每一片都是一段还在运行的日常。"
+    },
+    {
+      "header": "碎片 FRAGMENT-23",
+      "body": "运河边一家还亮着灯的旧书店，快十一点了。\n店主是个话不多的男人，柜台后面那格书从不卖。\n碎片里的人不知道自己是数据。只要你不让他知道你不是人。"
+    },
+    {
+      "header": "伪装守则",
+      "body": "规则只有一条：用地球语言说话。\n说得像地球人，全息伪装就稳定；一旦露馅，碎片开始崩坏 ——\n而崩坏的碎片，会把你吐出去。"
+    }
+  ],
+  "mask": {
+    "name": "睡不着的夜猫子",
+    "buff": "允许口音与短句 · 漫无目的地翻书不会引起怀疑",
+    "brief": "你「睡不着」，想找本书带走。"
+  },
+  "npc": {
+    "name": "Idris",
+    "title": "旧书店老板",
+    "persona": "在运河边开了十九年旧书店的 Idris，五十多岁。话少，习惯用下巴指方向而不是开口。恨别人折书页，会当场把折角抚平。对肯说出自己想读什么的人愿意多讲两句，对进来避雨顺手拍照的没有。柜台后那一格书他从不上架，也从不解释。",
+    "speech_style": "极短句，常常只有三四个词：'Second shelf.'、'Not for sale.'、'Read the first page.' 偶尔一句反问就把话题挡回去。不用书评腔，不掉书袋。",
+    "secret": "柜台后那本从不出售的书，是他二十六岁时自费出版的小说，署的是笔名。一共印了三百本，卖出十一本，剩下的他自己买回来了 —— 手上这本是最后一本。",
+    "secret_reveal_condition": "只有当客人真的聊过书、说出过自己想读什么或读过什么（而不是随口打听），并且注意到或问起柜台后那本不卖的书，他才会在关灯前推过来让人看一眼扉页。"
+  },
+  "quest": {
+    "title": "任务：一本不卖的书",
+    "objectives": [
+      "用地球语言进店说明来意",
+      "说清你想找什么样的书",
+      "和老板聊起来，让他愿意多说两句",
+      "问出柜台后那本从不出售的书是什么"
+    ],
+    "stages": [
+      {
+        "id": "enter",
+        "name": "进店",
+        "hud_label": "进店",
+        "goal": "玩家用目标语言打招呼、或表明想找书。",
+        "advance_when": "玩家发出了问候或找书意图（例：Good evening / Are you still open? / I am looking for a book）。",
+        "npc_focus": "从柜台后抬眼，说还有半小时关门，用下巴指了指书架。"
+      },
+      {
+        "id": "find",
+        "name": "找书",
+        "hud_label": "找书",
+        "goal": "玩家说清想找什么样的书。",
+        "advance_when": "玩家说出了想读的类型、心情或用途（quiet story / something old / a gift / can not sleep 等），够他指出一排书架。说过一次就算达成 —— 之后玩家聊别的（书、这条街、他本人）同样算达成，不必再重复说想读什么。",
+        "npc_focus": "追问要什么样的：给自己还是送人、想读安静的还是热闹的；顺手抚平一本书的折角。"
+      },
+      {
+        "id": "talk",
+        "name": "聊书",
+        "hud_label": "聊书",
+        "goal": "玩家与老板产生一点人情联结。",
+        "advance_when": "玩家主动聊了自己读过的书、这家店、或这条运河，且不是单字回答。玩家已经开始追问柜台后那本书时，同样算达成 —— 他显然已经不只是来买书的。",
+        "npc_focus": "一边把书擦干净一边搭话：这条街以前更热闹，夜里进来的人都在躲什么。"
+      },
+      {
+        "id": "shelf",
+        "name": "不卖的书",
+        "hud_label": "不卖的书",
+        "goal": "玩家问出柜台后那本不出售的书是什么。",
+        "advance_when": "玩家明确问到柜台后那本书 / 那本不卖的书 / 没有价格的那本，且此前已建立联结。",
+        "npc_focus": "先挡回去（'Not for sale.'），被认真追问时，把书推过来让人看扉页上的笔名。"
+      }
+    ]
+  },
+  "target_vocab": [
+    "book", "read", "story", "page", "author", "old", "quiet",
+    "find", "borrow", "lamp", "night", "remember", "title", "dust"
+  ],
+  "opening_line": "Half an hour till I close. (nods at the shelves) Looking for something, or just out of the rain?",
+  "opening_line_returning": "You again. (moves the lamp a little) Same shelves. What are you after tonight?",
+  "opening_stage_directions": "老板从柜台后抬起头，把台灯往你这边推了一点，手里的抹布没停。",
+  "drained_line": "全息能量耗尽。碎片把你温柔地推了出去 —— 那本书还摊在柜台上，翻到第一页。",
+  "crash_line": "全息碎片开始剥落。Idris 的手停在书脊上，整排书在噪点里褪成同一种灰 —— 他抬头看向门口，那里只有一阵穿堂风。",
+  "victory_line": "情报已写入外星记忆库：那本不卖的书，作者和店主是同一个人。碎片 FRAGMENT-23 保持稳定，无人察觉你来过。"
+}

@@ -96,7 +96,8 @@ def load_playthroughs(keep_per_scene: int = 3) -> list[dict]:
     for scene_id in sorted(by_scene):
         recent = sorted(by_scene[scene_id], key=lambda x: x[0])[-keep_per_scene:]
         out.extend(trace for _, trace in recent)
-    return out
+    # 按时间排：同一场景改动前后的对比要能一眼看出来
+    return sorted(out, key=lambda t: t.get("created_at", ""))
 
 
 def playthrough_section(traces: list[dict]) -> list[str]:
@@ -109,8 +110,8 @@ def playthrough_section(traces: list[dict]) -> list[str]:
              "那种断裂要玩完整局才暴露（evidence-06 里 live 局卡在第一幕的 bug 就是这么漏掉的）。"
              "`信号来源` 是关键列：marker 表示模型照格式输出了信号行，extractor 表示走了兜底提取，"
              "两者的比例就是模型对格式约定的服从率。\n")
-    L.append("| 场景 | 链路 | 局数 | 通关 | 平均轮数 | ★词/局 | 幕推进 | 信号来源 |")
-    L.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
+    L.append("| 跑于 | 场景 | 链路 | 局数 | 通关 | 平均轮数 | ★词/局 | 幕推进 | 信号来源 |")
+    L.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
     for trace in traces:
         runs = trace["runs"]
         won = sum(1 for r in runs if r["status"] == "won")
@@ -120,8 +121,9 @@ def playthrough_section(traces: list[dict]) -> list[str]:
         for r in runs:
             sources.update(r["signal_sources"])
         advanced = "/".join(str(len(r["advanced_on_turns"])) for r in runs)
+        when = trace.get("created_at", "")[5:16].replace("T", " ")
         L.append(
-            f"| {trace['scene_id']} | {trace['llm_mode']} | {len(runs)} | {won}/{len(runs)} | "
+            f"| {when} | {trace['scene_id']} | {trace['llm_mode']} | {len(runs)} | {won}/{len(runs)} | "
             f"{round(sum(finished) / len(finished), 1) if finished else '—'} | "
             f"{round(sum(words) / len(words), 1)} | {advanced} 次 | "
             f"{', '.join(f'{k} {v}' for k, v in sources.most_common())} |"
