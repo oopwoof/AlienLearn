@@ -60,7 +60,9 @@ async def run_turn(session: Session, sample: dict) -> dict:
         elif event == "state":
             record["state"] = payload
         elif event == "ended":
-            record["ended"] = {"status": payload["status"]}
+            # 全量收下：整局评测要用 summary 里的轮数与北极星，
+            # 结局文案也要能核对是不是真从场景 JSON 出的
+            record["ended"] = payload
 
     record["npc_text"] = "".join(parts).strip()
     record["latency_sec"] = round(time.perf_counter() - started, 3)
