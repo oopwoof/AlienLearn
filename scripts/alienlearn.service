@@ -1,0 +1,23 @@
+# AlienLearn 的 systemd unit。装到 /etc/systemd/system/alienlearn.service
+# （scripts/server_setup.sh 会替你拷）。
+#
+# 为什么用 systemd 而不是 nohup：机器重启后服务要自己回来，而你不会立刻发现它没回来。
+#
+# ⚠ 未在真机验证过 —— 服务器还没买。
+
+[Unit]
+Description=AlienLearn
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/alienlearn/backend
+ExecStart=/opt/alienlearn/.venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+# 埋点库默认在仓库的 data/ 下。想把数据和代码分开（更新时更安心），
+# 取消下面这行的注释并确保目录可写：
+# Environment=ALIENLEARN_DATA_DIR=/var/lib/alienlearn
+
+[Install]
+WantedBy=multi-user.target

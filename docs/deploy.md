@@ -18,7 +18,19 @@ DeepSeek 也在国内，所以服务端到模型这一跳同样受益。
 最低配置够用（1 核 2G）。系统选 Ubuntu 22.04。
 
 ```bash
-sudo apt update && sudo apt install -y python3-venv git
+git clone https://github.com/oopwoof/AlienLearn.git /tmp/al && bash /tmp/al/scripts/server_setup.sh
+```
+
+`scripts/server_setup.sh` 把下面这一节的步骤（依赖 / clone / venv / .env 模板 /
+systemd）串成一遍，幂等，重复跑不会覆盖已填好的 `.env`。
+
+> ⚠ **这个脚本没在真机上跑过** —— 服务器还没买。它是把人工步骤固化成可复核的
+> 顺序，不是"跑一下就完事"。第一次部署请逐段读、逐段看输出，出错就停。
+
+手工做也一样（脚本里就是这些）：
+
+```bash
+sudo apt update && sudo apt install -y python3-venv git sqlite3
 git clone https://github.com/oopwoof/AlienLearn.git /opt/alienlearn
 cd /opt/alienlearn
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
@@ -46,23 +58,9 @@ chmod 600 .env        # 别让同机其他用户读到 key
 
 自己 `nohup` 起进程的话，机器一重启服务就没了，而你不会立刻发现。
 
-`/etc/systemd/system/alienlearn.service`：
-
-```ini
-[Unit]
-Description=AlienLearn
-After=network.target
-
-[Service]
-WorkingDirectory=/opt/alienlearn/backend
-ExecStart=/opt/alienlearn/.venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 8000
-Restart=always
-RestartSec=3
-Environment=PYTHONUNBUFFERED=1
-
-[Install]
-WantedBy=multi-user.target
-```
+unit 文件就在仓库里：`scripts/alienlearn.service`（`server_setup.sh` 会替你拷到
+`/etc/systemd/system/`）。想把埋点库和代码分开存，把里面 `ALIENLEARN_DATA_DIR`
+那行的注释去掉。
 
 ```bash
 sudo systemctl daemon-reload && sudo systemctl enable --now alienlearn
