@@ -51,6 +51,10 @@ class Session:
     player_id: str = "anonymous"
     # A/B 分组：diorama（现状）/ text_only（隐藏箱庭）—— 验假设三（像素箱庭的 ROI）
     variant: str = "diorama"
+    # 流量来源：player（真实对局，写埋点）| eval（评测与自测脚本，一行都不写）。
+    # 评测局既会把北极星算成评测的平均值，也会吃掉玩家的日额度（额度是数 turn 行的），
+    # 所以闸门开在写库这一层。只能服务端定，绝不接受客户端自报 —— 见 orchestrator 的写库处。
+    channel: str = "player"
 
     suspicion: int = Rules.suspicion_start
     energy: int = Rules.energy_start
@@ -261,6 +265,16 @@ class Session:
 
 VARIANTS = ("diorama", "text_only")
 
+# 这些前缀是自测/评测脚本手工传的 player_id（e2e_stage3、smoke_flower、live_ramen_check…）。
+# 真实玩家的 id 是前端生成的无分隔符 UUID，撞不上带下划线的前缀。
+# 注意 anonymous 不在此列：那是 localStorage 不可写（隐私模式）的真实玩家。
+EVAL_PLAYER_PREFIXES = ("e2e_", "smoke_", "live_", "diag_", "rl_", "budget_")
+
+
+def channel_for(player_id: str) -> str:
+    """按 player_id 判断流量来源。判定放在服务端，客户端说了不算。"""
+    return "eval" if player_id.startswith(EVAL_PLAYER_PREFIXES) else "player"
+
 
 def assign_variant(player_id: str) -> str:
     """按 player_id 稳定分组，不用随机数。
@@ -286,7 +300,8 @@ class SessionStore:
         self._sessions: dict[str, Session] = {}
 
     def create(self, scene: dict, player_id: str = "anonymous") -> Session:
-        session = Session(scene=scene, player_id=player_id, variant=assign_variant(player_id))
+        session = Session(scene=scene, player_id=player_id, variant=assign_variant(player_id),
+                          channel=channel_for(player_id))
         self._sessions[session.session_id] = session
         return session
 

@@ -12,7 +12,8 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parent.parent
 SCENES_DIR = Path(__file__).resolve().parent / "scenes"
 FRONTEND_DIR = ROOT / "frontend"
-DATA_DIR = ROOT / "data"
+# 可覆盖：部署时把埋点库放到与代码分离的目录，更新代码不必担心动到数据
+DATA_DIR = Path(os.getenv("ALIENLEARN_DATA_DIR", "").strip() or ROOT / "data")
 
 load_dotenv(ROOT / ".env")
 

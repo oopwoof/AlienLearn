@@ -80,18 +80,21 @@ def create_session(body: NewSession) -> dict:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     session = STORE.create(scene, player_id=body.player_id)
-    telemetry.log(
-        session.session_id,
-        scene["scene_id"],
-        "session_start",
-        {
-            "llm_mode": CLIENT.mode,
-            "target_language": scene["target_language"],
-            "player_id": session.player_id,
-            "variant": session.variant,
-        },
-        player_id=session.player_id,
-    )
+    # channel 由 STORE.create 按 player_id 前缀判定（见 game_state.channel_for）：
+    # 自测脚本走 HTTP 也不落库，否则埋点闸只堵住了进程内的评测这一半
+    if session.channel == "player":
+        telemetry.log(
+            session.session_id,
+            scene["scene_id"],
+            "session_start",
+            {
+                "llm_mode": CLIENT.mode,
+                "target_language": scene["target_language"],
+                "player_id": session.player_id,
+                "variant": session.variant,
+            },
+            player_id=session.player_id,
+        )
     return {
         "state": session.public_state(),
         "scene": {
@@ -202,6 +205,8 @@ def client_event(body: ClientEvent) -> dict:
     payload = body.payload
     if len(json.dumps(payload, ensure_ascii=False).encode("utf-8")) > 2048:
         payload = {"truncated": True}
+    if session.channel != "player":
+        return {"ok": True, "logged": False}
     telemetry.log(
         session.session_id,
         session.scene["scene_id"],

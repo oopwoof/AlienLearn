@@ -69,7 +69,9 @@ async def run_turn(session: Session, sample: dict) -> dict:
 
 async def run_suite(scene: dict, suite_name: str) -> dict:
     samples = SUITES[suite_name]
-    session = Session(scene=scene)
+    # channel="eval"：评测跑的是与玩家同一条链路，但产出的不是玩家行为数据。
+    # 不标它，这些轮次会混进北极星，还会吃掉玩家的日额度（见 orchestrator 的写库闸）
+    session = Session(scene=scene, channel="eval")
     turns = []
 
     for sample in samples:

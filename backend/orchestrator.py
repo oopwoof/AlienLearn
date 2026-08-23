@@ -112,38 +112,42 @@ async def run_turn(session: Session, text: str) -> AsyncIterator[tuple[str, dict
     state["energy_refund"] = outcome.energy_refund
     yield "state", state
 
-    # ---- 4. 埋点：一行一轮的完整纠错轨迹
-    telemetry.log(
-        session.session_id,
-        scene["scene_id"],
-        "turn",
-        {
-            "player_text": text,
-            "stage_before": stage_id_before,
-            "stage_after": outcome.stage_id,
-            "route": route_result,
-            "pedagogy": pedagogy,
-            "npc_text": npc_text,
-            "signal": signal,
-            "suspicion_before": outcome.suspicion_before,
-            "suspicion_after": outcome.suspicion_after,
-            "suspicion_delta": outcome.suspicion_delta,
-            "glitch_level": outcome.glitch_level,
-            "energy": outcome.energy,
-            "energy_delta": outcome.energy_delta,
-            "vocab_new_hits": outcome.vocab_new_hits,
-            "status": outcome.status,
-            "llm_mode": agents.CLIENT.mode,
-            "variant": session.variant,
-        },
-        turn_index=session.turn_count,
-        player_id=session.player_id,
-    )
+    # ---- 4. 埋点：一行一轮的完整纠错轨迹。
+    # 只写真实对局：评测套件跑的是同一条链路，但它的数据不是玩家行为 ——
+    # 混进来既会污染北极星，也会吃掉玩家的日额度（limits 数的就是 turn 行）。
+    if session.channel == "player":
+        telemetry.log(
+            session.session_id,
+            scene["scene_id"],
+            "turn",
+            {
+                "player_text": text,
+                "stage_before": stage_id_before,
+                "stage_after": outcome.stage_id,
+                "route": route_result,
+                "pedagogy": pedagogy,
+                "npc_text": npc_text,
+                "signal": signal,
+                "suspicion_before": outcome.suspicion_before,
+                "suspicion_after": outcome.suspicion_after,
+                "suspicion_delta": outcome.suspicion_delta,
+                "glitch_level": outcome.glitch_level,
+                "energy": outcome.energy,
+                "energy_delta": outcome.energy_delta,
+                "vocab_new_hits": outcome.vocab_new_hits,
+                "status": outcome.status,
+                "llm_mode": agents.CLIENT.mode,
+                "variant": session.variant,
+            },
+            turn_index=session.turn_count,
+            player_id=session.player_id,
+        )
 
     if session.status != "playing":
         summary = session.summary()
-        telemetry.log(session.session_id, scene["scene_id"], "session_end", summary,
-                      player_id=session.player_id)
+        if session.channel == "player":
+            telemetry.log(session.session_id, scene["scene_id"], "session_end", summary,
+                          player_id=session.player_id)
         ending = {
             "won": scene["victory_line"],
             "crashed": scene["crash_line"],
