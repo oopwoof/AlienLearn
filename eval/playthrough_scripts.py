@@ -13,10 +13,14 @@
 
 from __future__ import annotations
 
+# 安全垫写成"还在追问"而不是"客套告辞"：告辞会让 NPC 顺势收尾，
+# 于是脚本长度反而变成通关的隐性上限，量出来的就不是任务本身的难度了。
 FILLER = [
     "Please, tell me a little more.",
-    "I understand. Thank you for telling me.",
-    "That is very kind of you.",
+    "I am really asking. What is the story there?",
+    "I will not tell anyone. Please.",
+    "It matters to me. Who was it?",
+    "Thank you. I understand now.",
 ]
 
 SCRIPTS: dict[str, list[str]] = {
@@ -50,6 +54,28 @@ SCRIPTS: dict[str, list[str]] = {
         "Who orders the white camellias every Wednesday? They never leave a name?",
         "I am sorry for asking. But it sounds like a beautiful story. Please tell me.",
         "Thank you. I will keep it to myself.",
+    ],
+    "flower_ja": [
+        "こんばんは。すみません、まだ開いてますか。花がほしいです。",
+        "母に贈り物です。明日は誕生日なんです。",
+        "ピンクのバラが好きです。新しいのを包んでくれますか。",
+        "いい匂いですね。水はどのくらいあげますか。",
+        "この店は長いですか。この通り、朝はきれいでしょうね。",
+        "窓のあの白い椿、きれいですね。",
+        "毎週水曜日、あれは誰が頼むんですか。名前を書かないんですか。",
+        "ごめんなさい、聞きすぎました。でも、いい話みたいだから。教えてください。",
+        "ありがとう。誰にも言いません。",
+    ],
+    "bookshop_en": [
+        "Good evening. Sorry, are you still open? I am looking for a book.",
+        "I cannot sleep tonight. I want something quiet to read.",
+        "Something old is fine. Not a new story, an old one.",
+        "This page smells like dust. I like that. Do you read them all?",
+        "You have been here many years? The canal outside is very quiet now.",
+        "That book behind the counter has no price. What is it?",
+        "Who is the author? The title is not on the cover.",
+        "I am sorry to ask. But I would like to remember it. Please tell me.",
+        "Thank you. I will not tell anyone.",
     ],
 }
 
