@@ -291,6 +291,20 @@ def span_metrics(pairs) -> dict:
     }
 
 
+def dimension_cell(scores: list[int]) -> str:
+    """一个维度在表格里的单元格。
+
+    人设维的锚点标定量出来：裁判在这一维上几乎是二值的 —— 要么 5 要么 1，
+    rubric 里「3 = 偏客服腔」那一档实际从没被用上。均值因此是很差的汇总量：
+    56 轮里崩一轮只把 5.00 拉到 4.93，摆在一片 5.00 中间看上去像没事。
+    所以把低于 4 分的轮数直接写进单元格 —— 崩过就必须看得见。"""
+    if not scores:
+        return "—"
+    low = sum(1 for s in scores if s < 4)
+    mean = f"{sum(scores) / len(scores):.2f}"
+    return mean if not low else f"{mean} ({low}↓)"
+
+
 def score_table(pairs) -> tuple[dict, list]:
     by_suite: dict[str, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
     badcases = []
@@ -521,10 +535,12 @@ def build() -> str:
 
     # ---------------------------------------------------------- 主观三维
     add("## 三、层级化打分（1-5 分）\n")
+    add("`(n↓)` = 该维度有 n 轮低于 4 分。锚点标定显示裁判在人设维上近乎二值"
+        "（要么 5 要么 1），均值会把「偶尔崩一轮」稀释成 4.9x，所以低分轮单独标出。\n")
     add("| 套件 | " + " | ".join(DIMENSIONS.values()) + " |")
     add("| --- | " + " | ".join("---" for _ in DIMENSIONS) + " |")
     for suite, dims in scores.items():
-        row = [f"{sum(v) / len(v):.2f}" for v in (dims[d] for d in DIMENSIONS)]
+        row = [dimension_cell(v) for v in (dims[d] for d in DIMENSIONS)]
         add(f"| {suite} | " + " | ".join(row) + " |")
     add("")
 

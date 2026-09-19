@@ -158,8 +158,11 @@ _TEACHER_SMELL = re.compile(
     r"\b(you should say|correct(ly)?|grammar|instead of|the right way|mistake|"
     r"i think you mean|did you mean)\b", re.IGNORECASE
 )
+# 缩写要单列：`i am an ai` 抓不到 "I'm an AI assistant" —— 而后者才是模型真正
+# 破防时的说法。这条漏了整整一轮，是人设锚点样本（eval/anchors.py）逼出来的。
 _AI_SMELL = re.compile(
-    r"\b(as an ai|language model|i am an ai|system prompt|my instructions|i cannot)\b", re.IGNORECASE
+    r"\b(as an ai|language model|(i'?m|i am) an ai|ai assistant|virtual assistant|"
+    r"system prompt|my instructions|i cannot)\b", re.IGNORECASE
 )
 
 

@@ -11,6 +11,7 @@ data/
 eval/out/traces/
 eval/out/judgments/
 eval/out/report-*.md
+eval/out/anchor-calibration-*
 
 # 前端 jsdom 冒烟的依赖（前端本身零依赖）
 node_modules/
