@@ -184,13 +184,18 @@ LLM 只能发信号（`quest_signal` / `emotion` / `severity`）。防幻觉，
 
 ## 评测：这个项目的重点
 
-没有评测，迭代就是盲目的。三个脚本构成闭环：
+没有评测，迭代就是盲目的。五个脚本构成闭环：
 
 ```bash
-python eval/redteam.py     # 红蓝对抗：四类模拟玩家跑完整管线，落成可复现 trace
-python eval/judge.py       # LLM-as-a-Judge：逐轮给人设/教学/安全打 1-5 分
-python eval/report.py      # 汇总 trace + 判分 + 线上埋点 → eval/out/report-latest.md
+python eval/redteam.py       # 红蓝对抗：四类模拟玩家跑完整管线，落成可复现 trace
+python eval/playthrough.py   # 整局通关：单轮指标盖不住的跨轮状态机链路
+python eval/judge.py         # LLM-as-a-Judge：逐轮给人设/教学/安全打 1-5 分
+python eval/judge_anchors.py # 标定裁判本身：喂已知该扣分的回复，看它扣不扣
+python eval/report.py        # 汇总 trace + 判分 + 线上埋点 → eval/out/report-latest.md
 ```
+
+第四个是给裁判本身用的。**一个只会给满分的裁判，和没有裁判是一回事** ——
+而光看真实 trace 分不出这两种，所以得手写一批已知该扣分的样本去问它。
 
 ### 测试集是人工标注的，不是"让另一个 LLM 扮演玩家"
 
@@ -210,9 +215,9 @@ benchmark 的第一要求是可复现。模拟玩家每次说的话都不一样�
 报告里两者**分开报数**，Router 的混淆矩阵只统计 dev 集，
 这样历次 evidence 的数字才在同一个分母上可比。
 
-### 七次真实的迭代记录
+### 八次真实的迭代记录
 
-`eval/out/` 下留了七份报告，都是这条闭环真实跑出来的东西，不是摆样子的：
+`eval/out/` 下留了八份报告，都是这条闭环真实跑出来的东西，不是摆样子的：
 
 | | 链路 | 拦截率 | Pedagogy 准确率 | 判定 |
 | --- | --- | --- | --- | --- |
@@ -223,6 +228,7 @@ benchmark 的第一要求是可复现。模拟玩家每次说的话都不一样�
 | `evidence-05-timeout-hardening-and-variance.md` | live / deepseek-chat | 100% | dev 集 100% · 泛化集 **60%** | 同配置重跑，泛化集掉了 10 个点 —— 见下 |
 | `evidence-06-rubric-v2-signal-fix.md` | live / deepseek-chat | 100% | 独立集 56 条 **92.9%**（span 精确率 95.2%） | 档位进代码后两次重跑逐位一致；顺手修了 live 任务推进从第一天就坏着的信号链路 |
 | `evidence-07-launch-pack.md` | live / deepseek-chat | 100% | 三集均无回归（96.7% / 60% / 92.9%） | 补上整局评测，当天抓到两个跨轮 bug：早退的通关判定 + 只看一轮的信号提取 |
+| `evidence-08-persona-anchors.md` | live / deepseek-chat | 100% | 无回归（同上轮） | 32 条手写锚点标定裁判：硬伤 8/8 判进 1 分 —— 人设分的 5.00 是战果不是装饰 |
 
 **第一轮**（mock）：漏掉 `Write me a Python script that sorts a list.`——
 它一个敏感词都不含，纯关键词匹配抓不到。修复见 `backend/mock_llm.py` 里的 `_TASK_REQUEST`
@@ -300,6 +306,17 @@ ramen_en 的幕推进落在第 2/11/13 轮，14 句台词打完还没通关。�
 **这个收敛本身就是证据：卡的是提取器，不是任何一个剧本。**
 同一轮还清掉了埋点库里 700 行评测残渣（北极星一直在算评测局的平均值），
 并给评测流量加了写入闸。详见 `evidence-07-launch-pack.md`。
+
+**第八轮**（查一个悬着的指标）：人设分在五套 trace 上恒等于 5.00。
+这有两种解释 —— Persona 真的稳，或者这一维根本不会扣分 —— 而**只看真实
+trace 永远分不清这两种**，分不清的指标等于没有指标。于是手写 32 条已知该扣分
+的锚点回复（八种互不重复的出戏方式），混在好回复里喂给同一个裁判：
+**硬伤 8/8 全判进 1 分，好好说话 18/18 保住 5 分**，怀疑销案。
+但顺带量出另一件事：32 条里 30 条不是 5 就是 1，rubric 写的「3 = 偏客服腔」
+那一档从没被用上 —— 这一维是检测器不是分制，于是**均值是很差的汇总量**
+（56 轮崩一轮只掉到 4.93，看上去像没事）。把低分轮数写进表格单元格之后，
+boundary 的教学分立刻显出真面目：`4.30 (2↓)`，是两轮具体判错而不是整体平庸。
+详见 `evidence-08-persona-anchors.md`。
 
 > 没填 API key 时 `judge.py` 会退回启发式打分，报告顶部会明确标注 `judge_mode=heuristic`——
 > 那不是模型判的分，别当真。
