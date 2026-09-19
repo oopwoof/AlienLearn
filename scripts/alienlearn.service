@@ -3,14 +3,22 @@
 #
 # 为什么用 systemd 而不是 nohup：机器重启后服务要自己回来，而你不会立刻发现它没回来。
 #
-# ⚠ 未在真机验证过 —— 服务器还没买。
+# 已在 ubuntu:22.04 容器里验过语法（systemd-analyze verify）和 ExecStart 这条命令
+# 本身（服务起得来、/api/meta 返回 200）。**未在真机验证**：容器里没有真正的
+# systemd，验不了开机自启和 Restart=always 的自愈。
 
 [Unit]
 Description=AlienLearn
 After=network.target
 
 [Service]
+# 不跑在 root 下：这是个对公网开放的 web 服务，被打穿时的爆炸半径不该是整台机器。
+# 这个用户由 scripts/server_setup.sh 创建，应用目录的属主也是它。
+User=alienlearn
+Group=alienlearn
 WorkingDirectory=/opt/alienlearn/backend
+# 监听地址写在这里，不是 .env —— systemd 不走 backend/run.py，.env 里的
+# HOST/PORT 对这条命令没有任何影响。要改端口改这一行。
 ExecStart=/opt/alienlearn/.venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=3

@@ -21,11 +21,33 @@ DeepSeek 也在国内，所以服务端到模型这一跳同样受益。
 git clone https://github.com/oopwoof/AlienLearn.git /tmp/al && bash /tmp/al/scripts/server_setup.sh
 ```
 
-`scripts/server_setup.sh` 把下面这一节的步骤（依赖 / clone / venv / .env 模板 /
-systemd）串成一遍，幂等，重复跑不会覆盖已填好的 `.env`。
+`scripts/server_setup.sh` 把下面这一节的步骤（依赖 / 服务账号 / clone / venv /
+.env 模板 / 数据目录 / systemd）串成一遍，幂等，重复跑不会覆盖已填好的 `.env`。
+root 直接跑或普通用户带 sudo 跑都可以。
 
-> ⚠ **这个脚本没在真机上跑过** —— 服务器还没买。它是把人工步骤固化成可复核的
-> 顺序，不是"跑一下就完事"。第一次部署请逐段读、逐段看输出，出错就停。
+### 已经验过什么，没验过什么
+
+2026-09-19 在干净的 `ubuntu:22.04` 容器里跑通了这些（**不是真机**）：
+
+| 验过的 | 结果 |
+| --- | --- |
+| 全新机器、root 登录、**没有 sudo** | 跑到底，退出码 0 |
+| Python 3.10（本机开发是 3.12） | venv、依赖、`import main` 全 OK |
+| `systemd-analyze verify` unit 语法 | 通过 |
+| `systemctl start` + `is-enabled` | active / enabled |
+| 服务跑在谁名下 | `alienlearn`，不是 root |
+| 非 root 身份写埋点库 | `data/telemetry.db` 属主 alienlearn，建局 200 |
+| `kill -9` 之后 `Restart=always` | 6 秒内自愈，仍是非 root |
+| 重复执行（升级路径） | `git pull --ff-only`，已填的 key 原样保留 |
+
+> ⚠ **仍然没在真机上跑过。** 容器验不了这些：真实网络与 DNS、安全组/防火墙
+> 放行 8000、公网 IP 从外面打得开、机器重启后服务自己回来、国内访问 GitHub
+> 和 DeepSeek 的实际速度。第一次部署仍请逐段读、逐段看输出，出错就停。
+
+容器里撞出来两个真问题，都已修：**脚本原来写死 `sudo`**，而国内轻量服务器默认
+root 登录、最小镜像里没有 sudo —— 第一行就 `command not found` 退出 127；
+**unit 原来没有 `User=`**，服务会以 root 身份对公网提供服务，
+脚本前面辛苦做的 chown 和 `chmod 600` 全部白做。
 
 手工做也一样（脚本里就是这些）：
 
@@ -42,7 +64,10 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 MOCK_LLM=0
 LLM_API_KEY=sk-...
 
-HOST=0.0.0.0          # 关键：127.0.0.1 只能本机访问，外面打不开
+# 注意：HOST/PORT 只对 `python backend/run.py` 生效。systemd 直接调 uvicorn，
+# 监听地址写死在 scripts/alienlearn.service 的 ExecStart 里 —— 要改端口改那里，
+# 改这里不会有任何效果。
+HOST=0.0.0.0
 PORT=8000
 
 DAILY_TURN_BUDGET=2000    # 成本保险丝，见 backend/limits.py
